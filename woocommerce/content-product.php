@@ -20,7 +20,7 @@ $product_id = $product->get_id();
 $permalink  = $product->get_permalink();
 $settings   = function_exists( 'yk_wcgv_get_settings' ) ? yk_wcgv_get_settings() : [];
 
-// Product IDs are collected by yk_wcgv_collect_product_id() via woocommerce_before_shop_loop_item (line below).
+// Product IDs are collected by YK_WCGV_Data::collect_product_id() via woocommerce_before_shop_loop_item (line below).
 $sku        = $product->get_sku();
 $is_bundle  = ( 'bundle' === $product->get_type() );
 $is_on_sale = $product->is_on_sale();

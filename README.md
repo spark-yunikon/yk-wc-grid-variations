@@ -135,15 +135,50 @@ This file renders the `.yk-card` HTML structure that the JS targets. It calls `y
   products: {
     "42": {
       type: "variable",
-      color_attr: "attribute_pa_farbe",
-      size_attr:  "attribute_pa_grosse",
+      // Every attribute marked "Used for variations", in back-office order.
+      attributes: [
+        {
+          name:  "attribute_pa_farbe",   // matches the keys in variations[].attributes
+          label: "Farbe",
+          style: "swatch",               // "swatch" | "pill"
+          options: [
+            {
+              value: "schwarz",          // EXACT value stored on the variation
+              label: "Schwarz",
+              // Present ONLY on options of a style: "swatch" attribute — see below.
+              swatch: {
+                type:     "color",       // "image" | "color" | "gradient" | "none"
+                color:    "#1a1a1a",
+                color2:   "",            // only for "gradient"
+                image:    "",            // yk_wcgv_swatch size (96×96)
+                is_light: false
+              }
+            }
+          ]
+        },
+        {
+          name:  "attribute_pa_grosse",
+          label: "Grösse",
+          style: "pill",
+          options: [
+            { value: "m", label: "M" }   // no `swatch` key on pill options
+          ]
+        }
+      ],
+      // Image pool for this product. Variations reference it by index instead of
+      // repeating the URL + srcset strings (which dominate the payload size).
+      images: [
+        {
+          url:    "https://…/image-300x300.jpg",
+          srcset: "…",
+          sizes:  "…"
+        }
+      ],
       variations: [
         {
           variation_id: 43,
           attributes:   { "attribute_pa_farbe": "rot", "attribute_pa_grosse": "m" },
-          image_url:    "https://…/image-300x300.jpg",
-          image_srcset: "…",
-          image_sizes:  "…",
+          img:          0,      // index into images[], or null when there is no image
           is_in_stock:  true,
           max_qty:      10
         }
@@ -155,10 +190,22 @@ This file renders the `.yk-card` HTML structure that the JS targets. It calls `y
   i18n: {
     added:            "Hinzugefügt",
     error:            "Fehler. Bitte erneut versuchen.",
-    select_variation: "Bitte Farbe und Grösse wählen."
+    select_variation: "Bitte alle Optionen wählen."
   }
 }
 ```
+
+**Reading the payload:**
+
+- `options[].swatch` is **optional**. It exists only when the attribute's `style` is
+  `"swatch"`; pills never carry it. Always guard with `option.swatch && …`.
+- `swatch.color` is filled in even when `swatch.type === "image"`. There it is a
+  contrast/border hint (from term meta or the colour-name map), **not** the swatch fill —
+  render the image in that case. On `"none"`, fall back to `#cccccc`.
+- `variations[].img` is an index into that product's `images[]` array, or `null` when the
+  variation has no image (no own image, no parent image, or the attachment was deleted).
+  Variations sharing an attachment share one pool entry — including the common case where
+  they all fall back to the parent product image, which then appears in the pool once.
 
 ### `window.ykWcgvProduct` (single product page)
 
@@ -176,22 +223,56 @@ This file renders the `.yk-card` HTML structure that the JS targets. It calls `y
 
 ## Attribute detection
 
-The plugin detects colour and size attributes by matching the attribute slug or label against keyword lists defined as PHP constants:
+**Which attributes are shown** — every attribute of the product that is marked *Used for
+variations* in the back office, in the order set there. Nothing is hardcoded to colour and
+size, so e.g. an antenna's "Frequenz" attribute appears like any other. Attributes that are
+not used for variations are descriptive only and are skipped.
+
+**How an attribute is rendered** (`style`), in this order:
+
+1. Any of its terms has an explicit swatch override in term meta → `swatch`
+2. The attribute slug/label matches `YK_WCGV_COLOR_KEYS` → `swatch`
+3. Everything else → `pill`
 
 ```php
-YK_WCGV_COLOR_KEYS = [ 'color', 'colour', 'farbe' ]
+YK_WCGV_COLOR_KEYS = [ 'color', 'colour', 'farbe' ]   // style fallback (rule 2)
 YK_WCGV_SIZE_KEYS  = [ 'size', 'größe', 'grösse', 'grosse', 'groesse', 'taille' ]
 ```
 
-To add support for another language, add the translated keyword to the relevant constant in `yk-wc-grid-variations.php`.
+Rule 1 reads the raw term meta, never `yk_wcgv_get_swatch()` — that helper falls back to the
+colour-name map, so a "Rot"-named frequency option would otherwise be mistaken for a colour.
+
+To add support for another language, add the translated keyword to the relevant constant in
+`yk-wc-grid-variations.php`.
+
+**Option values:** taxonomy attributes use the term slug, custom (non-taxonomy) attributes
+use the raw option string — exactly what WooCommerce stores on the variation. Never
+`sanitize_title()` a custom attribute value; it would no longer match and add-to-cart fails.
 
 ---
 
 ## Colour resolution
 
-Colour swatches are rendered using a built-in slug → hex map in `yk_wcgv_resolve_color()`. It recognises common colour names in English, German, and French.
+Each colour term can carry an explicit swatch in term meta — a hex colour, a two-tone pair
+(`#000000,#ffcc00`), or an uploaded image — editable on the attribute term screen
+(**Products → Attributes → Configure terms**). This is the way to handle two-tone colours
+such as "Schwarz/Gelb" that no name map can express.
 
-If a slug is not in the map, the function checks whether it is already a valid hex value (e.g. `#ff0000` or `ff0000`) and uses it directly. Unrecognised values fall back to `#cccccc`.
+Lookup order in `yk_wcgv_get_swatch()`: **image → term meta hex → colour-name map → none.**
+
+The name map in `yk_wcgv_resolve_color()` recognises common colour names in English, German
+and French. If a slug is not in the map, the function checks whether it is already a valid
+hex value (e.g. `#ff0000` or `ff0000`) and uses it directly. Unrecognised values fall back to
+`#cccccc`.
+
+### Swatch image size
+
+Swatch images are delivered at the registered `yk_wcgv_swatch` size (96×96, cropped).
+Images uploaded **before** this size existed do not have that file yet; WordPress then falls
+back to the full-size image, so swatches still render but download far more than needed.
+
+After upgrading, regenerate thumbnails once — for example with the *Regenerate Thumbnails*
+plugin, or `wp media regenerate --only-missing` on the CLI.
 
 ---
 
