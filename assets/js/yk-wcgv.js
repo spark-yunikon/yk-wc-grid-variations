@@ -9,6 +9,17 @@
  *   .yk-card, .yk-swatch, .yk-size, .yk-qty-wrap,
  *   .yk-qty-minus, .yk-qty-plus, .yk-qty-input,
  *   .yk-add-to-cart, .yk-price, .yk-badge-sale
+ *
+ * Payload contract (see README "JS data payload"):
+ *   data.attributes[] = { name, label, style, options[] }   — every attribute marked
+ *                       "Used for variations", in back-office order. `options[].swatch`
+ *                       is OPTIONAL: pill attributes do not carry it.
+ *   data.images[]     = { url, srcset, sizes }              — per-product image pool
+ *   data.variations[] = { variation_id, attributes, img, is_in_stock, max_qty }
+ *                       `img` is an index into data.images, or null.
+ *
+ * The markup renders one group per attribute, marked with data-attribute="<name>", so
+ * any number of attributes works — colour and size are not special-cased any more.
  */
 ( function ( $ ) {
 	'use strict';
@@ -27,59 +38,110 @@
 
 	function getState( card ) {
 		if ( ! cardState.has( card ) ) {
-			cardState.set( card, { colorValue: null, sizeValue: null, variationId: null } );
+			cardState.set( card, { selections: {}, variationId: null } );
 		}
 		return cardState.get( card );
+	}
+
+	// ── DOM helpers ──────────────────────────────────────────────────────────
+
+	function getGroups( card ) {
+		return Array.from( card.querySelectorAll( '[data-attribute]' ) );
+	}
+
+	function getOptions( group ) {
+		return Array.from( group.querySelectorAll( '.yk-swatch, .yk-size' ) );
 	}
 
 	// ── Variation resolution ─────────────────────────────────────────────────
 
 	/**
-	 * Return the first variation that matches colorValue + sizeValue.
-	 * An empty-string attribute value means "any" in WooCommerce.
+	 * True when a variation is compatible with the current selections.
+	 * An empty attribute value means "any" in WooCommerce.
 	 */
-	function resolveVariation( variations, colorAttr, sizeAttr, colorValue, sizeValue ) {
-		for ( const v of variations ) {
-			const vc = colorAttr ? v.attributes[ colorAttr ] : '';
-			const vs = sizeAttr  ? v.attributes[ sizeAttr  ] : '';
-
-			const colorMatch = ! colorAttr  || vc === '' || vc === colorValue || ! colorValue;
-			const sizeMatch  = ! sizeAttr   || vs === '' || vs === sizeValue  || ! sizeValue;
-
-			if ( colorMatch && sizeMatch ) {
-				return v;
+	function variationMatches( variation, selections ) {
+		for ( const name in selections ) {
+			const wanted = selections[ name ];
+			if ( ! wanted ) {
+				continue; // nothing picked for this attribute yet
+			}
+			const actual = variation.attributes[ name ];
+			if ( actual === '' || actual === undefined ) {
+				continue; // "any"
+			}
+			if ( actual !== wanted ) {
+				return false;
 			}
 		}
-		return null;
+		return true;
 	}
 
 	/**
-	 * Return true if at least one in-stock variation matches colorValue + sizeValue.
+	 * Could this attribute value still lead to an in-stock variation, given `constraints`?
 	 */
-	function isCombinationAvailable( variations, colorAttr, sizeAttr, colorValue, sizeValue ) {
-		return variations.some( v => {
-			const vc = colorAttr ? v.attributes[ colorAttr ] : '';
-			const vs = sizeAttr  ? v.attributes[ sizeAttr  ] : '';
+	function isOptionAvailable( data, constraints, name, value ) {
+		const test = Object.assign( {}, constraints );
+		test[ name ] = value;
 
-			const colorMatch = ! colorAttr  || vc === '' || vc === colorValue || ! colorValue;
-			const sizeMatch  = ! sizeAttr   || vs === '' || vs === sizeValue  || ! sizeValue;
+		return data.variations.some( v => v.is_in_stock && variationMatches( v, test ) );
+	}
 
-			return colorMatch && sizeMatch && v.is_in_stock;
+	/**
+	 * Selections of the groups that come BEFORE `index`.
+	 *
+	 * Attributes cascade in render order: the first one is always fully clickable, and each
+	 * further one is filtered by the choices above it. Constraining a group by the groups
+	 * below it would dead-end the card — every other colour would show up disabled just
+	 * because the currently selected size happens to be sold out in it.
+	 */
+	function priorSelections( groups, state, index ) {
+		const prior = {};
+
+		groups.slice( 0, index ).forEach( group => {
+			const name = group.dataset.attribute;
+			if ( state.selections[ name ] ) {
+				prior[ name ] = state.selections[ name ];
+			}
 		} );
+
+		return prior;
+	}
+
+	/**
+	 * The variation for the current selections — only once every attribute is decided,
+	 * because adding a half-specified variation to the cart is never right.
+	 */
+	function resolveVariation( data, selections ) {
+		const attributes = data.attributes || [];
+
+		if ( ! attributes.every( a => !! selections[ a.name ] ) ) {
+			return null;
+		}
+
+		return data.variations.find( v => variationMatches( v, selections ) ) || null;
 	}
 
 	// ── Card initialisation ──────────────────────────────────────────────────
 
-	function initCards() {
-		document.querySelectorAll( '.yk-card' ).forEach( initCard );
+	function initCards( root ) {
+		const scope = root || document;
+		scope.querySelectorAll( '.yk-card' ).forEach( initCard );
 	}
 
 	function initCard( card ) {
+		// Idempotent: infinite scroll appends cards and initialises just those, but a
+		// second pass over an already wired card would bind every listener twice.
+		if ( card.dataset.ykInit === '1' ) {
+			return;
+		}
+
 		// Bundle cards have no .yk-add-to-cart button — skip entirely.
 		const btn = card.querySelector( '.yk-add-to-cart' );
 		if ( ! btn ) {
 			return;
 		}
+
+		card.dataset.ykInit = '1';
 
 		const productId = btn.dataset.productId;
 		const data      = products[ productId ];
@@ -88,15 +150,14 @@
 			return;
 		}
 
-		// ── Swatches ─────────────────────────────────────────────────────────
-		card.querySelectorAll( '.yk-swatch' ).forEach( swatch => {
-			swatch.addEventListener( 'click', () => onSwatchClick( swatch, card, data ) );
-		} );
-
-		// ── Size pills ────────────────────────────────────────────────────────
-		card.querySelectorAll( '.yk-size' ).forEach( size => {
-			size.addEventListener( 'click', () => onSizeClick( size, card, data ) );
-		} );
+		// ── Attribute groups (swatches and pills alike) ──────────────────────
+		if ( data.type === 'variable' ) {
+			getGroups( card ).forEach( group => {
+				getOptions( group ).forEach( option => {
+					option.addEventListener( 'click', () => onOptionClick( option, group, card, data ) );
+				} );
+			} );
+		}
 
 		// ── Quantity stepper ──────────────────────────────────────────────────
 		const minus = card.querySelector( '.yk-qty-minus' );
@@ -119,155 +180,244 @@
 		// ── Add to cart ───────────────────────────────────────────────────────
 		btn.addEventListener( 'click', () => onAddToCart( btn, card, productId, data ) );
 
-		// ── Pre-select first colour + size ────────────────────────────────────
-		initPreselect( card, data );
+		// ── Pre-select the first available option of every attribute ──────────
+		if ( data.type === 'variable' ) {
+			preselect( card, data );
+			refreshCard( card, data );
+		}
 	}
 
 	// ── Pre-selection on init ────────────────────────────────────────────────
 
-	function initPreselect( card, data ) {
-		const state = getState( card );
+	/**
+	 * Walk the groups in render order and pick the first option that is still possible
+	 * given the earlier picks. PHP marks the first option of each group active; this
+	 * re-decides it against real stock data.
+	 */
+	function preselect( card, data ) {
+		const state  = getState( card );
+		const groups = getGroups( card );
 
-		// Read whichever swatch PHP marked active (the first one).
-		const firstSwatch = card.querySelector( '.yk-swatch.is-active' );
-		if ( firstSwatch ) {
-			state.colorValue = firstSwatch.dataset.value;
-			if ( data.type === 'variable' ) {
-				filterSizes( card, data, state.colorValue );
-			}
-		}
+		groups.forEach( ( group, index ) => {
+			const name    = group.dataset.attribute;
+			const options = getOptions( group );
 
-		// After size filtering, pick the first available size.
-		const allSizes = card.querySelectorAll( '.yk-size' );
-		if ( allSizes.length ) {
-			allSizes.forEach( s => s.classList.remove( 'is-active' ) );
-			const firstAvailable = card.querySelector( '.yk-size:not(.is-disabled):not([disabled])' );
-			if ( firstAvailable ) {
-				firstAvailable.classList.add( 'is-active' );
-				state.sizeValue = firstAvailable.dataset.value;
-			}
-		}
+			options.forEach( o => o.classList.remove( 'is-active' ) );
+			state.selections[ name ] = null;
 
-		// Resolve variation, update image and qty cap.
-		if ( data.type === 'variable' ) {
-			const v = resolveVariation(
-				data.variations,
-				data.color_attr,
-				data.size_attr,
-				state.colorValue,
-				state.sizeValue
-			);
-			state.variationId = v ? v.variation_id : null;
-			if ( v ) {
-				updateQtyMax( card, v.max_qty );
+			const prior = priorSelections( groups, state, index );
+			const pick  = options.find( o => isOptionAvailable( data, prior, name, o.dataset.value ) );
+
+			if ( pick ) {
+				pick.classList.add( 'is-active' );
+				state.selections[ name ] = pick.dataset.value;
 			}
-			updateImage( card, data, state, v );
-		}
+		} );
 	}
 
-	// ── Swatch click ─────────────────────────────────────────────────────────
+	// ── Option click ─────────────────────────────────────────────────────────
 
-	function onSwatchClick( swatch, card, data ) {
-		const state = getState( card );
-		const value = swatch.dataset.value;
-
-		// Toggle off if already active.
-		if ( state.colorValue === value ) {
-			state.colorValue  = null;
-			state.variationId = null;
-			swatch.classList.remove( 'is-active' );
-		} else {
-			state.colorValue  = value;
-			state.variationId = null;
-			card.querySelectorAll( '.yk-swatch' ).forEach( s => s.classList.remove( 'is-active' ) );
-			swatch.classList.add( 'is-active' );
-		}
-
-		// Deselect active size when color changes — the combination may no longer be valid.
-		card.querySelectorAll( '.yk-size' ).forEach( s => s.classList.remove( 'is-active' ) );
-		state.sizeValue = null;
-
-		if ( data.type === 'variable' ) {
-			filterSizes( card, data, state.colorValue );
-			updateImage( card, data, state );
-		}
-	}
-
-	// ── Size click ───────────────────────────────────────────────────────────
-
-	function onSizeClick( size, card, data ) {
-		if ( size.classList.contains( 'is-disabled' ) || size.disabled ) {
+	function onOptionClick( option, group, card, data ) {
+		if ( option.classList.contains( 'is-disabled' ) || option.disabled ) {
 			return;
 		}
 
-		const state = getState( card );
-		const value = size.dataset.value;
+		const state  = getState( card );
+		const groups = getGroups( card );
+		const name   = group.dataset.attribute;
+		const value  = option.dataset.value;
 
-		// Toggle off if already active.
-		if ( state.sizeValue === value ) {
-			state.sizeValue   = null;
-			state.variationId = null;
-			size.classList.remove( 'is-active' );
+		enableAnnouncements( card );
+
+		if ( state.selections[ name ] === value ) {
+			// Toggle off.
+			state.selections[ name ] = null;
+			option.classList.remove( 'is-active' );
 		} else {
-			state.sizeValue = value;
-			card.querySelectorAll( '.yk-size' ).forEach( s => s.classList.remove( 'is-active' ) );
-			size.classList.add( 'is-active' );
+			state.selections[ name ] = value;
+			getOptions( group ).forEach( o => o.classList.remove( 'is-active' ) );
+			option.classList.add( 'is-active' );
+		}
 
-			// Resolve variation and update qty max.
-			if ( data.type === 'variable' ) {
-				const v = resolveVariation(
-					data.variations,
-					data.color_attr,
-					data.size_attr,
-					state.colorValue,
-					state.sizeValue
-				);
-				state.variationId = v ? v.variation_id : null;
-				if ( v ) {
-					updateQtyMax( card, v.max_qty );
+		refreshCard( card, data, groups.indexOf( group ) );
+	}
+
+	// ── Availability + resolution ────────────────────────────────────────────
+
+	/**
+	 * Repaint availability, then resolve the variation and follow up (image, qty cap).
+	 *
+	 * @param {number|null} changedIndex Index of the group the shopper just changed.
+	 *                                   Selections below it are re-checked against the new
+	 *                                   combination and only dropped when they became
+	 *                                   impossible — a size that is still available stays
+	 *                                   selected instead of forcing the shopper to re-pick it.
+	 */
+	function refreshCard( card, data, changedIndex ) {
+		const state  = getState( card );
+		const groups = getGroups( card );
+
+		if ( typeof changedIndex === 'number' ) {
+			groups.forEach( ( group, index ) => {
+				if ( index <= changedIndex ) {
+					return;
 				}
-				updateImage( card, data, state, v );
+
+				const name  = group.dataset.attribute;
+				const value = state.selections[ name ];
+				if ( ! value ) {
+					return;
+				}
+
+				// Evaluated against the selections that survive above this group, so the
+				// chain stays satisfiable: a kept value always has an in-stock variation.
+				if ( isOptionAvailable( data, priorSelections( groups, state, index ), name, value ) ) {
+					return;
+				}
+
+				state.selections[ name ] = null;
+				getOptions( group ).forEach( o => o.classList.remove( 'is-active' ) );
+			} );
+		}
+
+		groups.forEach( ( group, index ) => {
+			const name  = group.dataset.attribute;
+			const prior = priorSelections( groups, state, index );
+
+			getOptions( group ).forEach( option => {
+				const available = isOptionAvailable( data, prior, name, option.dataset.value );
+
+				option.classList.toggle( 'is-disabled', ! available );
+
+				// Only real buttons (pills) can carry the native disabled attribute.
+				if ( option.tagName === 'BUTTON' ) {
+					option.disabled = ! available;
+				}
+
+				// A selection that just became impossible is dropped.
+				if ( ! available && state.selections[ name ] === option.dataset.value ) {
+					state.selections[ name ] = null;
+					option.classList.remove( 'is-active' );
+				}
+			} );
+		} );
+
+		const variation = resolveVariation( data, state.selections );
+		state.variationId = variation ? variation.variation_id : null;
+
+		if ( variation ) {
+			updateQtyMax( card, variation.max_qty );
+		}
+		updateImage( card, data, variation );
+		updatePriceAndSku( card, data, variation );
+	}
+
+	// ── Price and SKU ─────────────────────────────────────────────────────────
+
+	/**
+	 * Show the resolved variation's price and SKU, or fall back to what the server
+	 * rendered for the parent.
+	 *
+	 * While a selection is still incomplete the parent's price range and SKU stay put:
+	 * blanking them mid-cascade makes a grid of cards flicker for no information gain.
+	 */
+	function updatePriceAndSku( card, data, variation ) {
+		const priceEl = card.querySelector( '.yk-price__value' );
+		const skuEl   = card.querySelector( '.yk-card__sku strong' );
+
+		// Prices are pooled per product (most variations of a product share a price), so
+		// the variation carries an index rather than the markup.
+		const priceHtml = ( variation && variation.price !== null && variation.price !== undefined )
+			? ( data.prices || [] )[ variation.price ]
+			: null;
+
+		if ( priceEl ) {
+			// Remember the server-rendered parent markup once, and reserve the height it
+			// takes. A range ("CHF 19.10 – CHF 20.60") wraps to two lines where a single
+			// price needs one, and without the reservation every card in the row would
+			// jump the moment the preselection resolves.
+			if ( priceEl.dataset.ykDefault === undefined ) {
+				priceEl.dataset.ykDefault = priceEl.innerHTML;
+
+				// Reserve on the block container, never on the inline value: pinning a
+				// height on the value span pushes the "inkl. MwSt." suffix onto its own
+				// line and makes the card taller instead of keeping it steady.
+				const box = priceEl.closest( '.yk-price' );
+				if ( box ) {
+					const height = box.getBoundingClientRect().height;
+					if ( height ) {
+						box.style.minHeight = height + 'px';
+					}
+				}
+			}
+
+			setHtmlIfChanged( priceEl, priceHtml || priceEl.dataset.ykDefault );
+		}
+
+		if ( skuEl ) {
+			if ( skuEl.dataset.ykDefault === undefined ) {
+				skuEl.dataset.ykDefault = skuEl.textContent;
+			}
+
+			const nextSku = ( variation && variation.sku ) ? variation.sku : skuEl.dataset.ykDefault;
+			if ( skuEl.textContent !== nextSku ) {
+				skuEl.textContent = nextSku;
+				flash( skuEl );
 			}
 		}
 	}
 
-	// ── Size filtering ────────────────────────────────────────────────────────
+	function setHtmlIfChanged( el, html ) {
+		if ( el.innerHTML === html ) {
+			return;
+		}
+		el.innerHTML = html;
+		flash( el );
+	}
 
-	function filterSizes( card, data, colorValue ) {
-		card.querySelectorAll( '.yk-size' ).forEach( sizeEl => {
-			const sizeValue = sizeEl.dataset.value;
-			const available = isCombinationAvailable(
-				data.variations,
-				data.color_attr,
-				data.size_attr,
-				colorValue,
-				sizeValue
-			);
+	/**
+	 * Brief highlight so a changed number is noticed. Deliberately small: sixteen cards
+	 * pulsing at once during a cascade would be noise, not feedback.
+	 */
+	function flash( el ) {
+		el.classList.remove( 'yk-value-updated' );
+		// Force a reflow so the animation restarts when the value changes twice quickly.
+		void el.offsetWidth;
+		el.classList.add( 'yk-value-updated' );
+	}
 
-			if ( available ) {
-				sizeEl.classList.remove( 'is-disabled' );
-				sizeEl.removeAttribute( 'disabled' );
-			} else {
-				sizeEl.classList.add( 'is-disabled' );
-				sizeEl.setAttribute( 'disabled', '' );
-				if ( sizeEl.classList.contains( 'is-active' ) ) {
-					sizeEl.classList.remove( 'is-active' );
-					const state = getState( card );
-					if ( state.sizeValue === sizeValue ) {
-						state.sizeValue   = null;
-						state.variationId = null;
-					}
-				}
+	/**
+	 * Announce price/SKU changes only for the card the shopper is actually using.
+	 *
+	 * The regions are not live at page load on purpose: preselection resolves a variation
+	 * on every card, and sixteen simultaneous announcements would bury the page. The first
+	 * click on a card marks that card's regions polite, so from then on its own changes
+	 * are read out.
+	 */
+	function enableAnnouncements( card ) {
+		[ '.yk-price__value', '.yk-card__sku' ].forEach( function ( selector ) {
+			const el = card.querySelector( selector );
+			if ( el && ! el.hasAttribute( 'aria-live' ) ) {
+				el.setAttribute( 'aria-live', 'polite' );
 			}
 		} );
 	}
 
 	// ── Image update ──────────────────────────────────────────────────────────
 
-	// Accepts a pre-resolved variation to avoid calling resolveVariation twice when
-	// the caller already has it (initPreselect, onSizeClick). Pass nothing to resolve here.
-	function updateImage( card, data, state, v ) {
-		if ( data.type !== 'variable' ) {
+	/**
+	 * Swap the card thumbnail to the resolved variation's image.
+	 *
+	 * Images live in a per-product pool; the variation only carries an index. When the
+	 * variation has no image (img === null) the current image is left untouched.
+	 */
+	function updateImage( card, data, variation ) {
+		if ( ! variation || variation.img === null || variation.img === undefined ) {
+			return;
+		}
+
+		const image = ( data.images || [] )[ variation.img ];
+		if ( ! image || ! image.url ) {
 			return;
 		}
 
@@ -276,23 +426,13 @@
 			return;
 		}
 
-		const variation = ( v !== undefined ) ? v : resolveVariation(
-			data.variations,
-			data.color_attr,
-			data.size_attr,
-			state.colorValue,
-			state.sizeValue
-		);
-
-		if ( variation && variation.image_url ) {
-			imgEl.src = variation.image_url;
-			if ( variation.image_srcset ) {
-				imgEl.srcset = variation.image_srcset;
-			}
-			if ( variation.image_sizes ) {
-				imgEl.sizes = variation.image_sizes;
-			}
-		}
+		// The payload carries the URL only. The markup WooCommerce printed still has the
+		// original srcset/sizes, and a browser picks a candidate from srcset over src — so
+		// setting src alone would leave the previous variation's picture on screen. Drop
+		// both attributes before swapping.
+		imgEl.removeAttribute( 'srcset' );
+		imgEl.removeAttribute( 'sizes' );
+		imgEl.src = image.url;
 	}
 
 	// ── Quantity stepper ──────────────────────────────────────────────────────
@@ -429,9 +569,18 @@
 		el.textContent = message;
 		el.setAttribute( 'role', 'alert' );
 
-		const btn = card.querySelector( '.yk-add-to-cart' );
-		if ( btn && btn.parentNode ) {
-			btn.insertAdjacentElement( 'afterend', el );
+		// Append to .yk-cart-row, never after the button: the row is a flex container, so a
+		// sibling of the button becomes a flex item and steals its width ("In den …arenk").
+		// CSS takes the message out of flow (absolute, top:100%), so it spans the full row
+		// width below the button and adds no height — card heights stay uniform in the grid.
+		const row = card.querySelector( '.yk-cart-row' );
+		if ( row ) {
+			row.appendChild( el );
+		} else {
+			const btn = card.querySelector( '.yk-add-to-cart' );
+			if ( btn && btn.parentNode ) {
+				btn.insertAdjacentElement( 'afterend', el );
+			}
 		}
 
 		errorTimers.set( el, setTimeout( () => {
@@ -456,10 +605,28 @@
 		return d.innerHTML;
 	}
 
+	// ── Public surface for yk-wcgv-infinite.js ───────────────────────────────
+
+	window.ykWcgvArchive = {
+		/**
+		 * Wire up cards that were just appended. Pass the container holding only the new
+		 * nodes; already-initialised cards are skipped either way.
+		 */
+		initCards: initCards,
+
+		/**
+		 * Merge a page's product payload into the live one. `products` is the same object
+		 * reference the card handlers read, so extending it is enough.
+		 */
+		addProducts: function ( more ) {
+			Object.assign( products, more || {} );
+		},
+	};
+
 	// ── Boot ─────────────────────────────────────────────────────────────────
 
 	if ( document.readyState === 'loading' ) {
-		document.addEventListener( 'DOMContentLoaded', initCards );
+		document.addEventListener( 'DOMContentLoaded', function () { initCards(); } );
 	} else {
 		initCards();
 	}

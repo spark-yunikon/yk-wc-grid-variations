@@ -97,7 +97,7 @@ class YK_WCGV_Term_Meta {
 			'yk-wcgv-admin',
 			YK_WCGV_URL . 'assets/js/yk-wcgv-admin.js',
 			[ 'jquery', 'media-editor' ],
-			YK_WCGV_VERSION,
+			yk_wcgv_asset_version( 'assets/js/yk-wcgv-admin.js' ),
 			true
 		);
 
@@ -193,7 +193,7 @@ class YK_WCGV_Term_Meta {
 			</button>
 			<span
 				data-yk-swatch-preview
-				style="width:28px;height:28px;border-radius:50%;border:1px solid #ccd0d4;display:inline-block;background:<?php echo esc_attr( self::preview_background( $colors ) ); ?>;"
+				style="width:28px;height:28px;border-radius:50%;border:1px solid #ccd0d4;display:inline-block;<?php echo esc_attr( self::preview_background( $colors ) ); ?>;"
 			></span>
 		</span>
 		<p class="description">
@@ -234,19 +234,24 @@ class YK_WCGV_Term_Meta {
 	}
 
 	/**
-	 * CSS background value for the preview dot.
+	 * CSS declaration painting the preview dot.
+	 *
+	 * Returns a longhand declaration (background-image / background-color) rather than the
+	 * `background:` shorthand, matching content-product.php, yk-wcgv-product.js and
+	 * yk-wcgv-admin.js. The shorthand resets background-color to transparent, so mixing the
+	 * two makes the swatch renderers diverge the moment a colour is painted underneath.
 	 *
 	 * @param  string[] $colors Zero, one or two hex colours.
-	 * @return string
+	 * @return string CSS declaration without a trailing semicolon.
 	 */
 	private static function preview_background( array $colors ): string {
 		if ( empty( $colors ) ) {
-			return 'transparent';
+			return 'background-color:transparent';
 		}
 		if ( isset( $colors[1] ) ) {
-			return 'linear-gradient(135deg,' . $colors[0] . ' 0 50%,' . $colors[1] . ' 50% 100%)';
+			return 'background-image:linear-gradient(135deg,' . $colors[0] . ' 0 50%,' . $colors[1] . ' 50% 100%)';
 		}
-		return $colors[0];
+		return 'background-color:' . $colors[0];
 	}
 
 	// ── Save ─────────────────────────────────────────────────────────────────
@@ -271,7 +276,11 @@ class YK_WCGV_Term_Meta {
 			return;
 		}
 
-		// TODO(v2 STEP6): invalidate product transient
+		// A swatch colour or image changed, so every cached product entry that shows this
+		// term is stale. There is no cheap term → products map; see flush_term().
+		if ( class_exists( 'YK_WCGV_Data' ) ) {
+			YK_WCGV_Data::flush_all();
+		}
 
 		if ( isset( $_POST['yk_wcgv_swatch_color'] ) ) {
 			$raw   = sanitize_text_field( wp_unslash( $_POST['yk_wcgv_swatch_color'] ) );
@@ -338,7 +347,7 @@ class YK_WCGV_Term_Meta {
 			$background = self::preview_background( array_values( $colors ) );
 
 			return sprintf(
-				'<span title="%s" style="width:32px;height:32px;border-radius:50%%;border:1px solid #ccd0d4;display:inline-block;background:%s;"></span>',
+				'<span title="%s" style="width:32px;height:32px;border-radius:50%%;border:1px solid #ccd0d4;display:inline-block;%s;"></span>',
 				esc_attr( implode( ', ', $colors ) ),
 				esc_attr( $background )
 			);

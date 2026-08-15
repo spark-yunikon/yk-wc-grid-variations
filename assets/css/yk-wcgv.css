@@ -125,6 +125,17 @@
 	padding: 0;
 	position: relative;
 	transition: box-shadow 0.18s ease, border-color 0.18s ease;
+
+	/* Skip layout and paint for cards that are off screen. The grid gets long — infinite
+	   scroll will make it much longer — and every card carries swatches, pills and a
+	   stepper. The intrinsic size is the measured card height, so the scrollbar and any
+	   anchor offsets stay put while cards are still unrendered. */
+	content-visibility: auto;
+	/* 520px, measured: real cards render 479–550px tall. The old 600px placeholder made
+	   every unrendered card ~100px too tall, which pushed the infinite-scroll sentinel
+	   down the document and ate into the configured prefetch distance (1600 → 1273px
+	   effective). Keep this in step with the actual card height. */
+	contain-intrinsic-size: auto 520px;
 }
 
 .yk-card:hover {
@@ -195,12 +206,76 @@
 }
 
 /* ============================================================
+   VARIATION PRICE / SKU SWAP (yk-wcgv.js)
+   ============================================================ */
+
+/* The value swaps in place and stays inline so the "inkl. MwSt." suffix keeps sitting
+   next to it. The JS pins a min-height on the surrounding .yk-price block on first run,
+   so a two-line price range collapsing to a one-line price cannot shorten the card. */
+
+/* Short, quiet highlight — enough to notice a changed number, not enough to make a grid
+   of sixteen cards feel like it is blinking. */
+@keyframes yk-value-updated {
+	from { background-color: rgba(0, 0, 0, 0.07); }
+	to   { background-color: transparent; }
+}
+
+.yk-value-updated {
+	animation: yk-value-updated 0.45s ease-out;
+	border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.yk-value-updated {
+		animation: none;
+	}
+}
+
+/* ============================================================
+   INFINITE SCROLL (yk-wcgv-infinite.js)
+   ============================================================ */
+
+/* Hidden, never removed: crawlers and JS-less visitors keep the real links, and the
+   script puts them back if a request fails. */
+.yk-pagination--hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.yk-infinite-sentinel {
+	width: 100%;
+	height: 1px;
+}
+
+.yk-infinite-status {
+	margin: 1rem 0 0;
+	text-align: center;
+	font-size: 0.875rem;
+	color: var(--yk-text-muted);
+	min-height: 1.4em;   /* reserve the line so appending text never shifts the grid */
+}
+
+.yk-infinite-retry {
+	margin-left: 0.5rem;
+}
+
+/* ============================================================
    3. COLOR SWATCHES
    ============================================================ */
 .yk-swatches {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 5px;
+	/* 6px, not 5px: the active swatch's check badge overhangs its box by 4px
+	   (3px offset + 1px ring), so this keeps a 2px clearance to the neighbour and,
+	   on wrapped rows, to the row above. */
+	gap: 6px;
 	margin-bottom: var(--yk-gap-section);
 }
 
@@ -210,16 +285,20 @@
 	width: 18px;
 	height: 18px;
 	border-radius: 50%;
-	border: 1.5px solid rgba(0, 0, 0, 0.15);
 	flex-shrink: 0;
 	cursor: pointer;
 	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
 }
 
-/* White swatch needs a visible border */
-.yk-swatch[style*="background-color:#ffffff"],
-.yk-swatch[style*="background-color: #ffffff"] {
-	border-color: var(--yk-border);
+/* Light fills (and images) need a visible edge, otherwise they dissolve into the white card.
+   Driven by swatch.is_light from the payload — WCAG relative luminance, computed in PHP —
+   instead of matching colour strings, which only ever caught the exact value #ffffff.
+   A box-shadow ring, not a border: it adds no layout box, so swatch size and the badge
+   clearance stay exactly as measured. The ring is darker than --yk-border so it still reads
+   next to the selected badge's white ring. */
+.yk-swatch.is-light,
+.yk-swatch.has-image {
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.22);
 }
 
 /* ============================================================
@@ -366,6 +445,7 @@
    7b. CART ROW — qty stepper + button side by side
    ============================================================ */
 .yk-cart-row {
+	position: relative;   /* anchor for the absolutely placed .yk-card__error */
 	display: flex;
 	gap: 8px;
 	align-items: stretch;
@@ -520,7 +600,11 @@
    INTERACTIVE STATES (wired by yk-wcgv.js)
    ============================================================ */
 
-/* Swatch — selected state: outline ring + white checkmark overlay */
+/* Swatch — selected state: outline ring + check badge on the top-right corner.
+   The badge deliberately overhangs the swatch (see .yk-swatches gap). The check is an
+   inline SVG data URI, never an icon font or a ✓ character, so it renders identically
+   regardless of the fonts a site loads. The 1px ring around the badge keeps it readable
+   on dark swatches, where badge and swatch colour would otherwise merge. */
 .yk-swatch.is-active {
 	outline: 2px solid var(--yk-btn-bg);
 	outline-offset: 2px;
@@ -529,16 +613,17 @@
 .yk-swatch.is-active::after {
 	content: '';
 	position: absolute;
-	inset: 0;
-	background-color: #ffffff;
-	-webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolyline points='2 13 9 20 22 4' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-	mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolyline points='2 13 9 20 22 4' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-	-webkit-mask-repeat: no-repeat;
-	mask-repeat: no-repeat;
-	-webkit-mask-position: center;
-	mask-position: center;
-	-webkit-mask-size: 65%;
-	mask-size: 65%;
+	top: -3px;
+	right: -3px;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background-color: var(--yk-btn-bg);
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolyline points='4 13 9 18 20 6' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: 62%;
+	box-shadow: 0 0 0 1px var(--yk-bg-card, #ffffff);
 	pointer-events: none;
 }
 
@@ -610,12 +695,23 @@
 	display: none !important;
 }
 
+/* Validation message under the add-to-cart row.
+   Absolutely positioned on purpose: inside .yk-cart-row it would be a flex item and shrink
+   the button, and in normal flow it would grow the card and break the grid's row height
+   (cards in a row are equal height — one taller card pushes the whole row). Out of flow it
+   costs zero height and sits in the ~26px of space the row margin + card padding already
+   leave below the button. */
 .yk-card__error {
-	font-size: 0.75rem;
-	color: var(--yk-danger);
-	margin: 0.35rem 0 0;
+	position: absolute;
+	top: calc(100% + 2px);
+	left: 0;
+	right: 0;
+	margin: 0;
 	padding: 0;
+	font-size: 0.75rem;
 	line-height: 1.4;
+	color: var(--yk-danger);
+	pointer-events: none;
 }
 
 /* ============================================================

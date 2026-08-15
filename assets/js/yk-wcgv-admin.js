@@ -24,14 +24,27 @@
 		return out;
 	}
 
-	function background( colors ) {
-		if ( ! colors.length ) {
-			return 'transparent';
-		}
+	/**
+	 * Paint the preview dot.
+	 *
+	 * Sets the background longhands explicitly — never the `background:` shorthand — so the
+	 * four swatch renderers (this file, content-product.php, yk-wcgv-product.js and the PHP
+	 * preview in class-yk-wcgv-term-meta.php) all declare backgrounds the same way. Both
+	 * longhands are written on every call because they must not accumulate: a gradient left
+	 * behind would sit on top of the next single colour.
+	 *
+	 * @param {HTMLElement} el     Preview element.
+	 * @param {string[]}    colors Zero, one or two hex colours.
+	 */
+	function applyBackground( el, colors ) {
 		if ( colors.length > 1 ) {
-			return 'linear-gradient(135deg,' + colors[0] + ' 0 50%,' + colors[1] + ' 50% 100%)';
+			el.style.backgroundColor = '';
+			el.style.backgroundImage = 'linear-gradient(135deg,' + colors[0] + ' 0 50%,' + colors[1] + ' 50% 100%)';
+			return;
 		}
-		return colors[0];
+
+		el.style.backgroundImage = '';
+		el.style.backgroundColor = colors.length ? colors[0] : 'transparent';
 	}
 
 	function initColorField( field ) {
@@ -47,7 +60,7 @@
 			var colors = parseColors( text.value );
 
 			if ( preview ) {
-				preview.style.background = background( colors );
+				applyBackground( preview, colors );
 			}
 
 			Array.prototype.forEach.call( pickers, function( picker ) {
@@ -73,7 +86,7 @@
 
 			text.value = next.filter( Boolean ).join( ',' );
 			if ( preview ) {
-				preview.style.background = background( parseColors( text.value ) );
+				applyBackground( preview, parseColors( text.value ) );
 			}
 		}
 

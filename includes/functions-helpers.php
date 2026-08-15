@@ -22,6 +22,36 @@ const YK_WCGV_COLOR_FALLBACK = '#cccccc';
 // so 96×96 covers 2× displays; the admin term list keeps using 'thumbnail'.
 const YK_WCGV_SWATCH_IMAGE_SIZE = 'yk_wcgv_swatch';
 
+// Per-category paging override. Lives on product_cat terms only — the swatch meta above
+// lives on pa_* terms only, and the two admin screens must stay separate.
+const YK_WCGV_META_PAGINATION_MODE = 'yk_wcgv_pagination_mode';
+
+/**
+ * Cache-busting version for one asset.
+ *
+ * With WP_DEBUG on, the file's modification time is used, so an edited CSS/JS file is
+ * picked up on the next reload. The release version alone cannot do that: it stays frozen
+ * during development (see CLAUDE.md — the version is set once, at release), which means
+ * the asset URL never changes and browsers keep serving the copy they already have. That
+ * cost real debugging time during STEP 8.
+ *
+ * With WP_DEBUG off — production — the plugin version is used, so every visitor shares one
+ * cacheable URL per release.
+ *
+ * @param  string $relative_path Path below the plugin directory, e.g. 'assets/js/yk-wcgv.js'.
+ * @return string Version string for wp_enqueue_script() / wp_enqueue_style().
+ */
+function yk_wcgv_asset_version( string $relative_path ): string {
+	if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+		return YK_WCGV_VERSION;
+	}
+
+	$file = YK_WCGV_DIR . ltrim( $relative_path, '/' );
+	$time = is_readable( $file ) ? @filemtime( $file ) : false; // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+	return $time ? (string) $time : YK_WCGV_VERSION;
+}
+
 /**
  * True if $slug or $label contains any of the given $keys (substring match).
  */
@@ -291,9 +321,13 @@ function yk_wcgv_is_light_color( string $hex ): bool {
  *                            misses and the colour-name map decides.
  * @param  string $term_slug  Term slug (taxonomy) or raw option string (custom attribute).
  * @param  string $image_size Registered image size for the swatch image URL.
+ * @param  mixed  $term       Optional preloaded WP_Term. Pass it when the caller already
+ *                            has the term: the get_term_by() lookup below is a real query
+ *                            per term (WP_Term_Query is not answered by the object term
+ *                            cache), which on an archive meant ~100 queries per page.
  * @return array{type:string,image:string,color:string,color2:string,is_light:bool}
  */
-function yk_wcgv_get_swatch( string $taxonomy, string $term_slug, string $image_size = YK_WCGV_SWATCH_IMAGE_SIZE ): array {
+function yk_wcgv_get_swatch( string $taxonomy, string $term_slug, string $image_size = YK_WCGV_SWATCH_IMAGE_SIZE, $term = null ): array {
 	static $cache = [];
 
 	$cache_key = $taxonomy . '|' . $term_slug . '|' . $image_size;
@@ -309,13 +343,18 @@ function yk_wcgv_get_swatch( string $taxonomy, string $term_slug, string $image_
 		'is_light' => true,
 	];
 
-	$term = null;
-	if ( $taxonomy && $term_slug && taxonomy_exists( $taxonomy ) ) {
-		// TODO(v2 STEP5): when WPML is active and this is a translated term, fall back
-		// to the source term's meta — term meta is not copied to translations.
-		$found = get_term_by( 'slug', $term_slug, $taxonomy );
-		if ( $found && ! is_wp_error( $found ) ) {
-			$term = $found;
+	if ( ! $term instanceof WP_Term ) {
+		$term = null;
+
+		if ( $taxonomy && $term_slug && taxonomy_exists( $taxonomy ) ) {
+			// KNOWN LIMITATION (documented in README, "WPML"): WPML does not copy term meta
+			// to translated terms, so a translated colour term resolves through the name map
+			// instead of its stored swatch. Falling back to the source term's meta would fix
+			// it; it needs WPML's term-translation API and is deliberately not done here.
+			$found = get_term_by( 'slug', $term_slug, $taxonomy );
+			if ( $found && ! is_wp_error( $found ) ) {
+				$term = $found;
+			}
 		}
 	}
 

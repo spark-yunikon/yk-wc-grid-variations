@@ -1,158 +1,198 @@
 # CLAUDE.md
 
-이 저장소는 WooCommerce 플러그인 **YK WC Grid Variations** (v2.0.0) 입니다.
-이 문서는 Claude Code가 이 코드베이스에서 작업할 때 따라야 할 구조·규칙을 정리한 것입니다.
+This repository is the WooCommerce plugin **YK WC Grid Variations** (v2.0.0).
+This document records the structure and the rules to follow when working in this codebase.
 
 ---
 
-## 1. 플러그인이 하는 일
+## 1. What the plugin does
 
-WooCommerce의 기본 상품 카드를 대체해서, 카테고리 / 아카이브 / 태그 페이지에
-자체 제작한 `.yk-card` 카드를 렌더링합니다. 카드가 제공하는 기능:
+It replaces WooCommerce's default product card and renders its own `.yk-card` on category,
+archive and tag pages. The card provides:
 
-- **variation 속성 전부 자동 표시** (STEP 3~) — "Used for variations"가 체크된 속성을
-  백엔드 정렬 순서대로 모두 렌더합니다. 색상/사이즈 하드코딩은 없어졌고,
-  안테나의 "Frequenz" 같은 속성도 그대로 나옵니다.
-- **스와치** (`.yk-swatch`) — `style === 'swatch'`인 속성. 원형 칩, 클릭 시 선택
-- **필** (`.yk-size`) — `style === 'pill'`인 속성. pill 버튼, 선택된 조합에서
-  재고가 없는 값은 자동으로 `is-disabled` 처리
-- **수량 스테퍼** (`.yk-qty-wrap`) — `+` / `−` 버튼, 선택된 variation의
-  `max_qty`로 상한을 clamp
-- **AJAX 장바구니** (`.yk-add-to-cart`) — WooCommerce의 `?wc-ajax=add_to_cart`
-  엔드포인트로 POST, 페이지 리로드 없이 담고 `added_to_cart` 이벤트를 트리거해
-  테마의 cart fragment를 갱신
-- **선택한 색상에 맞춰 카드 썸네일 교체** — variation 이미지의 `src` / `srcset` / `sizes`
+- **Every variation attribute, shown automatically** (STEP 3+) — all attributes marked
+  "Used for variations" are rendered in the back-office order. Nothing is hardcoded to colour
+  and size any more, so an antenna's "Frequenz" attribute appears like any other.
+- **Swatches** (`.yk-swatch`) — attributes with `style === 'swatch'`. Round chips, click to
+  select.
+- **Pills** (`.yk-size`) — attributes with `style === 'pill'`. Values that are out of stock in
+  the current combination get `is-disabled` automatically.
+- **Quantity stepper** (`.yk-qty-wrap`) — `+` / `−` buttons, clamped to the selected
+  variation's `max_qty`.
+- **AJAX add-to-cart** (`.yk-add-to-cart`) — POSTs to WooCommerce's own
+  `?wc-ajax=add_to_cart` endpoint, adds without a page reload, and fires `added_to_cart` so the
+  theme's cart fragments refresh.
+- **Card thumbnail swapped to match the selected colour** — the payload ships a single `src`,
+  and the JS strips `srcset` / `sizes` from the markup before swapping.
 
-추가로 **단일 상품 페이지**(`is_product()`)에서는 WooCommerce 기본 variation
-`<select>` 드롭다운을 같은 스타일의 스와치/필로 치환하고, `div.quantity`에
-`+` / `−` 스테퍼를 붙입니다. 이 기능은 설정에서 `enable_product_page`로 끌 수 있습니다.
+On the **single product page** (`is_product()`) it additionally replaces WooCommerce's default
+variation `<select>` dropdowns with swatches and pills in the same style, and adds `+` / `−`
+steppers to `div.quantity`. This part can be switched off with the `enable_product_page`
+setting.
 
-bundle 타입 상품은 카드에서 장바구니 UI 대신 "Zum Produkt" 링크만 표시합니다.
+Bundle products show only a "Zum Produkt" link on the card instead of the cart UI.
 
 ---
+## 2. Data flow
 
-## 2. 데이터 흐름
-
-### 아카이브 / 카테고리 페이지
+### Archive / category pages
 
 ```
-WooCommerce 루프
+WooCommerce loop
   └─ woocommerce_before_shop_loop_item
        └─ YK_WCGV_Data::collect_product_id()
             → $GLOBALS['yk_wcgv_product_ids'][] = $product->get_id()
 
-  └─ wc_get_template_part 필터
+  └─ wc_get_template_part filter
        └─ YK_WCGV_Template::override_template_part()
-            → woocommerce/content-product.php 로 교체 (.yk-card 마크업 출력)
+            → swapped for woocommerce/content-product.php (prints the .yk-card markup)
 
-wp_footer (priority 1)   ※ wp_print_footer_scripts()의 20보다 먼저
+wp_footer (priority 1)   ← ahead of wp_print_footer_scripts() at 20
   └─ YK_WCGV_Assets::inject_data()
        └─ YK_WCGV_Data::build_product_data( $ids )   ← yk_wcgv_build_product_data() wrapper
             → wp_add_inline_script( 'yk-wcgv', 'window.ykWcgv = {...}', 'before' )
 
-브라우저: DOMContentLoaded
+Browser: DOMContentLoaded
   └─ assets/js/yk-wcgv.js
-       → window.ykWcgv 를 읽어 모든 .yk-card 에 이벤트 바인딩
+       → reads window.ykWcgv and binds events on every .yk-card
 ```
 
-핵심 포인트:
+Key points:
 
-- 상품 ID는 **루프가 도는 동안 전역 배열에 누적**되고, 페이지에 실제로 출력된
-  상품에 대해서만 payload를 만듭니다. 별도 쿼리를 다시 돌리지 않습니다.
-- 주입 시점이 `wp_footer` **priority 1**인 이유는 `wp_add_inline_script(...,
-  'before')`가 `yk-wcgv.js` 태그가 출력되기 전에 등록되어야 하기 때문입니다.
-  이 우선순위를 바꾸면 `window.ykWcgv`가 `undefined`가 되어 JS가 조용히 종료합니다
-  (`yk-wcgv.js` 상단의 early return).
-- 이미지·재고·최대수량 같은 variation 데이터는 **PHP에서 전부 직렬화**되어
-  내려가므로, 스와치/사이즈 클릭 시 추가 AJAX 요청이 없습니다.
-  장바구니 담기만 네트워크를 탑니다.
+- Product IDs **accumulate in a global array while the loop runs**, and the payload is built
+  only for the products actually printed on the page. No second query is issued.
+- Injection sits at `wp_footer` **priority 1** because `wp_add_inline_script( …, 'before' )`
+  must be registered before the `yk-wcgv.js` tag is printed. Change that priority and
+  `window.ykWcgv` becomes `undefined`, so the JS exits silently at the early return at the top
+  of `yk-wcgv.js`.
+- Variation data — images, stock, max quantity — is **serialised entirely in PHP**, so clicking
+  a swatch or a pill costs no extra AJAX request. Only add-to-cart touches the network.
 
-### 단일 상품 페이지
+### Single product page
 
 ```
 wp_footer (priority 1)
   └─ YK_WCGV_Assets::inject_product_page_data()
-       └─ YK_WCGV_Data::build_product_page_colors( $product )
-            → window.ykWcgvProduct = { colors: { slug: '#hex', ... } }
+       ├─ YK_WCGV_Data::build_product_page_attributes( $product )   ← same source as archives
+       └─ YK_WCGV_Data::build_product_page_colors( $product )       ← legacy compatibility
+            → window.ykWcgvProduct = { attributes: {...}, colors: {...}, i18n: {...} }
 
 assets/js/yk-wcgv-product.js
-  → form.variations_form 안의 select 를 스와치/필로 치환
-  → select 의 value 를 바꾸고 change 이벤트를 dispatch
-     (WooCommerce 기본 variation 로직은 그대로 사용)
-  → MutationObserver 로 WC가 disable 시킨 option 상태를 시각 상태와 동기화
+  → replaces **every** variation select inside variations_form with swatches/pills (STEP 5+)
+     style and swatch data come from the payload. No keyword matching
+  → writes the select's value and dispatches a change event
+     (WooCommerce's own variation logic keeps running untouched)
+  → syncFromSelect() only **mirrors** WooCommerce's disabled/value state into the visuals
 ```
 
-### 스와치 색상 해석 (term meta, STEP 2~)
+**★ WooCommerce is the single source of state.** `syncFromSelect()` must be **read-only** — it
+must never write to a select or dispatch an event. An earlier version cleared the select
+(`select.value = ''`) whenever the active option became disabled; that fought WooCommerce's own
+matching and silently wiped the shopper's choice on three-attribute products (confirmed by
+measurement on dev). **Do not copy the archive's cascade logic in here.** This page has a
+`variations_form`, and it already knows the right answer.
 
-색상 term마다 관리자가 HEX(단색/투톤) 또는 이미지를 직접 지정할 수 있습니다.
-저장은 term meta, 조회는 `yk_wcgv_get_swatch( $taxonomy, $term_slug )` 하나로 통일합니다.
+- Three watchers, deliberately: `MutationObserver` (options added/removed, `disabled`
+  toggled), the select's `change` event (a value change mutates no attribute, so the observer
+  cannot see it), and jQuery's `reset_data` (Clear, or no matching combination).
+  **On `reset_data`, do not blindly clear the visual state — re-read it from the select.**
+  WooCommerce may well have kept a value, and the two must not drift apart.
+- An attribute missing from the payload (a translated taxonomy, for instance) **falls back to
+  pills**. A native select must never be left visible.
+
+### Resolving swatch colours (term meta, STEP 2+)
+
+An administrator can set a HEX value (single or two-tone) or an image on each colour term.
+Storage is term meta; lookups all go through one helper,
+`yk_wcgv_get_swatch( $taxonomy, $term_slug )`.
 
 ```
-관리자: 속성 term 화면 (edit-tags.php / term.php, pa_* 만)
-  └─ YK_WCGV_Term_Meta  ※ is_admin() 일 때만 로드
-       ├─ {$tax}_add_form_fields / {$tax}_edit_form_fields  → 필드 렌더
-       ├─ created_{$tax} / edited_{$tax}                    → 저장
-       └─ manage_edit-{$tax}_columns / _custom_column       → 목록 미리보기
+Admin: attribute term screens (edit-tags.php / term.php, pa_* only)
+  └─ YK_WCGV_Term_Meta  ← loaded only when is_admin()
+       ├─ {$tax}_add_form_fields / {$tax}_edit_form_fields  → render fields
+       ├─ created_{$tax} / edited_{$tax}                    → save
+       └─ manage_edit-{$tax}_columns / _custom_column       → list preview
 
-프론트/관리자 공통 조회 (includes/functions-helpers.php)
+Shared lookup, front end and admin (includes/functions-helpers.php)
   └─ yk_wcgv_get_swatch()
-       이미지(첨부 유효) > term meta HEX > yk_wcgv_resolve_color() 이름 맵 > none
+       image (valid attachment) > term meta HEX > yk_wcgv_resolve_color() name map > none
        → [ type, image, color, color2, is_light ]
 ```
 
-- **훅 등록 시점**: `pa_*` taxonomy는 WooCommerce가 init(5)에서 등록하므로
-  `wc_get_attribute_taxonomies()`를 도는 것은 `woocommerce_after_register_taxonomy`
-  (+ init 20 폴백) 이후여야 합니다. 더 일찍 걸면 필드가 아예 렌더되지 않습니다.
-- **`type` vs `color`**: `type`은 렌더 방식이고, `color` / `color2`는 해석 가능하면
-  `type === 'image'`일 때도 채워집니다(테두리·대비 판단용 힌트). `type === 'none'`이면
-  호출측이 `yk_wcgv_resolve_color()`(= `#cccccc`)로 폴백합니다.
-- 첨부파일이 삭제돼 `wp_get_attachment_image_url()`이 false를 반환하면 이미지가 없는
-  것으로 보고 HEX/이름 맵으로 폴백합니다.
-- 같은 term이 한 페이지에서 여러 번 조회되므로 **요청 단위 static 캐시**가 들어 있습니다.
-  persistent 캐시는 STEP 6 예정이며, 그때 term meta 저장 핸들러의
-  `// TODO(v2 STEP6): invalidate product transient` 지점에서 무효화를 붙입니다.
+- **Hook timing.** WooCommerce registers the `pa_*` taxonomies on `init` (5), so iterating
+  `wc_get_attribute_taxonomies()` must happen after `woocommerce_after_register_taxonomy`
+  (with an `init` 20 fallback). Hook it any earlier and the fields never render at all.
+- **`type` vs `color`.** `type` is how the swatch is rendered; `color` / `color2` are filled in
+  whenever they can be resolved — including when `type === 'image'`, where they serve as a
+  border/contrast hint. On `type === 'none'` the caller falls back to
+  `yk_wcgv_resolve_color()` (`#cccccc`).
+- If the attachment was deleted and `wp_get_attachment_image_url()` returns false, the swatch
+  is treated as having no image and falls back to the HEX value or the name map.
+- The same term is looked up many times per page, so there is a **per-request static cache**.
+  Swatches also ride inside the per-product transient from STEP 6, and the term meta save
+  handler invalidates with `YK_WCGV_Data::flush_all()` — there is no cheap term → products
+  reverse map, so a full flush was the right trade (editing a swatch is a rare admin action).
 
-### 표시 속성 선택과 style 판정 (STEP 3~)
+**How to check whether the term meta path is actually being used.** When a term's meta HEX
+happens to equal the name-map value (`schwarz` → `#1a1a1a` either way), **you cannot tell the
+two paths apart by looking at the screen.** This is exactly where people conclude "the swatch
+renders, so the meta works" and are wrong:
+
+```bash
+# 1) does raw meta exist? true means the meta path, not the name-map fallback
+wp eval 'var_dump( yk_wcgv_term_has_swatch_meta( 1632 ) );'
+
+# 2) change the value briefly and see whether it lands (the conclusive test)
+wp eval 'update_term_meta(1632,"yk_wcgv_swatch_color","#123456");
+         YK_WCGV_Data::flush_all();
+         print_r( yk_wcgv_get_swatch("pa_farbe","schwarz") );'
+```
+
+Forget the `flush_all()` and you get the stale transient value and misdiagnose it as "the meta
+does not work".
+
+### Which attributes are shown, and how style is decided (STEP 3+)
 
 ```
 YK_WCGV_Data::build_attributes( $product )
-  └─ $product->get_attributes() 순회 (백엔드 정렬 순서 유지)
+  └─ iterate $product->get_attributes() (keeps the back-office order)
        ├─ $attribute->get_variation() !== true  → skip
-       │    ("Used for variations" 미체크 속성은 절대 표시하지 않음)
-       ├─ options[] 만들기
-       │    taxonomy    → value = term slug
-       │    커스텀 속성 → value = 원본 옵션 문자열 (sanitize_title 금지!)
-       └─ style 판정 (determine_attribute_style, 순서 고정)
-            1. term 중 하나라도 raw swatch term meta 보유 → 'swatch'
-            2. 속성 slug/label이 YK_WCGV_COLOR_KEYS 매칭   → 'swatch'
-            3. 그 외                                        → 'pill'
+       │    (an attribute not marked "Used for variations" is never shown)
+       ├─ build options[]
+       │    taxonomy         → value = term slug
+       │    custom attribute → value = the raw option string (never sanitize_title!)
+       └─ decide style (determine_attribute_style, fixed order)
+            1. any term carries raw swatch term meta   → 'swatch'
+            2. attribute slug/label matches YK_WCGV_COLOR_KEYS → 'swatch'
+            3. everything else                          → 'pill'
 ```
 
-- **★ style 판정에 `yk_wcgv_get_swatch()`를 쓰지 마세요.** 이 헬퍼는 term meta가 없어도
-  이름 맵 폴백으로 `color`를 채우기 때문에, "Rot"이라는 이름의 Frequenz term이
-  색상 속성으로 오인됩니다. 판정은 반드시 `yk_wcgv_term_has_swatch_meta()`
-  (raw `get_term_meta` 직접 조회)로 합니다.
-- **커스텀(비-taxonomy) 속성 값**: WooCommerce는 variation에 원본 문자열을 저장합니다
-  (`'868 MHz'`). `sanitize_title()`을 적용하면 `variations[].attributes` 값과 어긋나
-  **장바구니 담기가 조용히 실패**합니다. 이건 STEP 3에서 고친 실제 버그입니다.
-- `YK_WCGV_SIZE_KEYS`는 이제 style 판정에 쓰이지 않습니다(상수는 템플릿 호환용으로 유지).
-- **`style === 'pill'`인 속성의 option에는 `swatch` 키가 아예 없습니다.** pill은 스와치
-  데이터를 쓰지 않으므로 페이로드에서 뺐습니다. 렌더러는 `swatch`를 **optional로**
-  취급해야 합니다(`option.swatch && ...`). 부수 효과로 pill 옵션마다 돌던
-  term 조회도 사라집니다.
-- **커스텀(비-taxonomy) 속성 분기는 방어 코드입니다.** 2026-08 실사이트 스캔 결과
-  208개 상품 중 variation용 커스텀 속성을 쓰는 상품은 **0개**였습니다. 제거하지 말고
-  그대로 두세요 — 나중에 커스텀 속성이 추가되면 값 불일치로 장바구니가 조용히
-  실패하는 것을 막아줍니다.
+- **★ Do not use `yk_wcgv_get_swatch()` to decide style.** That helper fills in `color` from
+  the name map even when no term meta exists, so a Frequenz term that happens to be named
+  "Rot" would be mistaken for a colour attribute. Style must be decided with
+  `yk_wcgv_term_has_swatch_meta()`, which reads `get_term_meta` directly.
+- **Custom (non-taxonomy) attribute values.** WooCommerce stores the raw string on the
+  variation (`'868 MHz'`). Apply `sanitize_title()` and the value no longer matches
+  `variations[].attributes`, so **add-to-cart fails silently**. This is a real bug that was
+  fixed in STEP 3.
+- `YK_WCGV_SIZE_KEYS` is not used for style decisions. A pill is simply "not a swatch", so no
+  keyword list is needed at all (the constant survives only for 1.x-era snippets).
+- **Options of a `style === 'pill'` attribute carry no `swatch` key at all.** Pills do not use
+  swatch data, so it was dropped from the payload. Renderers must treat `swatch` as
+  **optional** (`option.swatch && …`). A welcome side effect: the per-option term lookup for
+  pills disappeared too.
+- **The custom (non-taxonomy) attribute branch is defensive code.** A full site scan in
+  2026-08 found **0 of 208 products** using a custom attribute for variations. **Do not remove
+  it** — it is what stops add-to-cart from failing silently the day someone adds one.
 
-### variation 이미지 풀 (STEP 3.5~)
+### The variation image pool (STEP 3.5+)
 
-variation마다 `image_url` / `image_srcset` / `image_sizes`를 반복해서 싣던 구조를
-**상품 단위 이미지 풀 + 인덱스 참조**로 바꿨습니다.
+Repeating `image_url` / `image_srcset` / `image_sizes` on every variation was replaced by a
+**per-product image pool with index references**.
 
 ```
-'images' => [                                  // 상품 단위, 0부터의 순차 인덱스
-   0 => [ 'url' => '...', 'srcset' => '...', 'sizes' => '...' ],
+'images' => [                                  // per product, sequential index from 0
+   0 => [ 'url' => '...' ],                    // url only — srcset/sizes are not shipped
    1 => [ ... ],
 ],
 'variations' => [
@@ -161,262 +201,584 @@ variation마다 `image_url` / `image_srcset` / `image_sizes`를 반복해서 싣
 ]
 ```
 
-- 풀의 키는 **attachment ID가 아니라 0부터의 순차 인덱스**입니다(짧게 유지).
-  attachment ID → 인덱스 매핑은 `$image_lookup`으로 빌드 중에만 씁니다.
-- 같은 attachment를 쓰는 variation은 **같은 인덱스를 공유**합니다. variation에
-  자체 이미지가 없어 부모 이미지로 폴백하는 경우도 풀에는 1건만 들어갑니다.
-- 이미지가 없거나 attachment가 삭제돼 URL이 비면 **`'img' => null`**.
-- 이 구조는 STEP 7(무한 스크롤)에서 페이지마다 payload가 누적되기 때문에
-  STEP 6 캐싱보다 먼저 적용했습니다.
+- Pool keys are a **sequential index from 0, not the attachment ID** (kept short). The
+  attachment ID → index mapping lives in `$image_lookup` and only during the build.
+- Variations sharing an attachment **share one index**. That includes the common case where
+  they all fall back to the parent product image, which then appears in the pool once.
+- No image, or a deleted attachment leaving an empty URL, means **`'img' => null`**.
+- **`srcset` and `sizes` were dropped from the payload entirely.** They accounted for roughly
+  80% of it, and the swap happens inside a fixed-size card slot where one `src` is enough.
+  In exchange, **the JS must remove the `srcset` and `sizes` attributes before swapping** — a
+  browser prefers a `srcset` candidate over `src`, so leaving them in place keeps the previous
+  image on screen (`updateImage()` in `yk-wcgv.js`).
+- This landed before the STEP 6 caching work because STEP 7 (infinite scroll) accumulates the
+  payload page after page.
 
-### payload 형태
+### The card markup ↔ JS contract (STEP 4+)
 
-`window.ykWcgv` 구조와 `window.ykWcgvProduct` 구조는 `README.md`의
-"JS data payload" 섹션에 예시가 있습니다. payload 필드를 바꿀 때는
-**PHP(`yk_wcgv_build_product_data`) · JS · README를 함께** 수정하세요.
+Template and payload come from **the same source**. `content-product.php` calls
+`YK_WCGV_Data::build_attributes( $product )` directly (which is why that method is public), so
+the markup and `window.ykWcgv` cannot disagree about which attributes exist, what their values
+are, or in what order they appear.
 
+```html
+<div class="yk-swatches" data-attribute="attribute_pa_farbe" aria-label="Farbe">
+  <span class="yk-swatch is-active" data-value="schwarz" style="background-color:#1a1a1a;"></span>
+</div>
+<div class="yk-sizes" data-attribute="attribute_pa_grosse" aria-label="Grösse">
+  <button class="yk-size" data-value="m">M</button>
+</div>
+```
+
+- **`data-attribute` is the only key joining a group to the payload.** Remove it or rename it
+  and the JS cannot find the group. The JS locates groups by `[data-attribute]` and options by
+  `.yk-swatch, .yk-size`.
+- The class hooks are reused as-is: `style='swatch'` → `.yk-swatches`/`.yk-swatch`,
+  `style='pill'` → `.yk-sizes`/`.yk-size`. **These are not size-specific classes — they mean
+  "pill style"** (a Frequenz attribute renders in `.yk-size` too). They are kept for
+  compatibility with existing theme CSS.
+- Swatch fills are inline styles (`background-color` for a single colour, `linear-gradient` for
+  two-tone, `background-image` for an image), so no CSS file needs editing to add a colour.
+
+**Selection is a cascade.** The first attribute is always clickable, and each attribute is
+filtered **only by the attributes before it**. Constraining upwards — say, disabling every
+colour that is sold out in the currently selected size — dead-ends the card, leaving no way to
+pick a different colour. When an attribute changes, the selections after it are
+**recalculated**: those still valid in the new combination are **kept**, and only the invalid
+ones are cleared. `variationId` resolves and add-to-cart is enabled only once every attribute
+is selected.
+
+> **Correction (measured on dev, 2026-08):** this paragraph used to claim that changing an
+> attribute clears **all** selections after it. **That is not true.** On the ASCENSION card,
+> going from `schwarz + linkshaender` to `gelb` keeps `linkshaender` and resolves straight to
+> B17ALA. Keeping a valid selection beats making the shopper choose again, so **do not revert
+> this to "clear everything".**
+
+### Payload shape
+
+Examples of the `window.ykWcgv` and `window.ykWcgvProduct` structures live in the "JS data
+payload" section of `README.md`. When you change a payload field, update
+**PHP (`yk_wcgv_build_product_data`), the JS, and the README together.**
+
+### ★★ The payload injection must never die (a real outage)
+
+**`inject_data()` runs on `wp_footer` priority 1**, and `wp_print_footer_scripts()` runs at
+priority 20. So **a fatal here removes every script from the page** — not just ours, but
+WooCommerce's `add-to-cart-variation.js` and the theme's scripts as well. The symptom is not
+"the plugin is missing"; it is **"the whole site is broken"**.
+
+This actually happened:
+
+- When `_upsell_ids` / `_crosssell_ids` reference a **variation ID**, WooCommerce renders that
+  variation in an ordinary shop loop. (Measured on dev: of 32,828 references, 1,439 pointed at
+  variations, and 210 products / 633 references actually rendered on the front end — **this is
+  not a rare data glitch**.)
+- `WC_Product_Variation::get_attributes()` returns a **plain string array**
+  (`['attribute_pa_farbe' => 'schwarz']`), not `WC_Product_Attribute` objects. Calling
+  `->get_variation()` on those strings threw.
+
+There are four layers of defence. **Do not remove any of them:**
+
+| Layer | What it does |
+|---|---|
+| a. Block at the source | `collect_product_id()` never collects `is_type('variation')` / `product_variation` post types |
+| b. Type guard | `is_attribute_object()` = `is_object()` + `method_exists(get_variation/is_taxonomy)`. Applied in **all three** of `compute_attributes()`, `prime()` and `build_product_page_colors()` |
+| c. Fail quietly | A guard hit returns an empty array and logs through `error_log` only under `WP_DEBUG`, so production logs do not explode |
+| d. Safety net | The whole of `inject_data()` is wrapped in `try/catch ( Throwable )` |
+
+**★ Catch `Throwable`, not `Exception`.** `TypeError` is an `Error`, not an `Exception`, and
+the fatal above was exactly a `TypeError`. Change this to `catch ( Exception )` and the safety
+net catches nothing.
+
+If you add code that iterates `$product->get_attributes()`, **it must go through
+`is_attribute_object()`.** WooCommerce returns different shapes from that method depending on
+the product type.
+
+### Performance decisions that are easy to undo (STEP 6+)
+
+Each of these came out of measurement, which makes them easy to "tidy away". Mind the **do not**
+in every item. (The raw measurements live in the engagement folder outside this repository —
+see §5.)
+
+- **Do not use `get_available_variations()`.** It builds price HTML, an availability string and
+  a six-size image array for every variation. Read `get_visible_children()` plus the five
+  fields actually needed.
+- **The cache key contains `CACHE_VERSION`** (`yk_wcgv_v{N}_{id}_{lang}`, 12 h). **Bump that
+  constant whenever you change the payload schema** — that alone invalidates everything, so no
+  migration code is needed. Take it out of the key and every schema change leaves the old shape
+  cached, silently breaking the JS.
+- **Taxonomy priming covers only what is needed** (`prime_attribute_terms`). Measured across 7
+  products: no priming 52 queries / all 64 taxonomies of the product type 41 / **only the 8
+  needed, 23**. "Surely priming everything is faster" is **wrong** — it adds lookups for
+  taxonomies nobody reads.
+- **★ Do not replace the term queries with `get_the_terms()`.** Of the 182 queries on the
+  cache-miss path, 75 are `WP_Term_Query`, because `wc_get_product_terms()` calls
+  `wp_get_post_terms()` internally, which **does not use the object term cache**. Yes, you
+  could remove most of them with `get_the_terms()` plus your own sorting — but this site's
+  attributes mix **three different orderings** (`name`, `menu_order`, `name_num`), so
+  hand-rolling the sort shifts option order in ways that are hard to notice. It is a cost paid
+  once every twelve hours, and it was **left in place deliberately.**
+- **38% of the miss path is WPML** (69 `icl_translations` queries). Nothing on our side can
+  reduce it, so account for it when reading cache-miss numbers.
+- **`content-visibility: auto` + `contain-intrinsic-size: auto 520px` on `.yk-card`**
+  (`yk-wcgv.css`). The 520px comes from **measured card heights of 467–546px** — do not round
+  it back to something like 600px, and do not delete it. Effect: one forced layout costs
+  0.20–0.62 ms versus 1.40–3.70 ms without it (roughly 6–7×). Anchor drift across 144 cards is
+  **0 px**. In a headless browser, rAF FPS is unrelated to actual painting and tells you
+  nothing — **measure forced layout time instead.**
 ---
 
-## 3. 파일 구조
+## 3. File structure
 
 ```
-yk-wc-grid-variations.php      부트스트랩: 상수 정의, includes require, 클래스 init() 호출,
-                               HPOS 호환 선언
+yk-wc-grid-variations.php      Bootstrap: constants, require of includes, class init() calls,
+                               HPOS compatibility declaration
 includes/
 ├── functions-helpers.php      yk_wcgv_attr_matches(), yk_wcgv_resolve_color()
-├── class-yk-wcgv-i18n.php     텍스트도메인 로드, JS 문자열, WPML 등록
-├── class-yk-wcgv-settings.php 설정 페이지, get/sanitize
-├── class-yk-wcgv-data.php     루프 ID 수집, payload 빌더
-├── class-yk-wcgv-assets.php   wp_enqueue_scripts, 인라인 스크립트 주입
-├── class-yk-wcgv-template.php wc_get_template_part 오버라이드, 루프 훅 제거, body_class
-└── class-yk-wcgv-term-meta.php 속성 term별 스와치 색상/이미지 관리자 UI
-                               ★ is_admin()일 때만 require + init
+├── class-yk-wcgv-i18n.php     Text domain, JS strings, WPML registration
+├── class-yk-wcgv-settings.php Settings page, get/sanitize
+├── class-yk-wcgv-data.php     Loop ID collection, payload builder
+├── class-yk-wcgv-assets.php   wp_enqueue_scripts, inline script injection
+├── class-yk-wcgv-template.php wc_get_template_part override, loop hook removal, body_class
+├── class-yk-wcgv-ajax.php     Infinite-scroll endpoint (nonce + query var whitelist)
+├── class-yk-wcgv-term-meta.php Swatch colour/image admin UI for attribute terms (pa_*)
+│                              ★ required and init'd only when is_admin()
+└── class-yk-wcgv-category-meta.php Per-product_cat paging mode override
+                               ★ required and init'd only when is_admin()
 woocommerce/
-└── content-product.php        카드 마크업 템플릿 (wc_get_template_part 필터로 주입)
+└── content-product.php        Card markup template (injected via the wc_get_template_part filter)
 assets/
 ├── css/
-│   ├── yk-wcgv.css            아카이브 카드 스타일 + 디자인 토큰(--yk-*) 정의
-│   └── yk-wcgv-product.css    단일 상품 페이지 스타일 (yk-wcgv.css 토큰을 재사용)
+│   ├── yk-wcgv.css            Archive card styles + design token (--yk-*) definitions
+│   └── yk-wcgv-product.css    Single product page styles (reuses the yk-wcgv.css tokens)
 └── js/
-    ├── yk-wcgv.js             카드 인터랙션 (스와치/사이즈/수량/AJAX 카트)
-    ├── yk-wcgv-product.js     단일 상품 페이지 (select → 스와치/필 치환, 스테퍼)
-    └── yk-wcgv-admin.js       관리자 term 화면 (색상 입력 동기화, 미디어 프레임)
-languages/                     .po / .mo (선택)
+    ├── yk-wcgv.js             Card interaction (swatches/pills/quantity/AJAX cart)
+    ├── yk-wcgv-product.js     Single product page (select → swatch/pill, stepper)
+    ├── yk-wcgv-infinite.js    Infinite scroll (IntersectionObserver, card append)
+    └── yk-wcgv-admin.js       Admin term screen (colour input sync, media frame)
+languages/                     .po / .mo (optional)
 ```
 
-> **README와의 차이 주의**: `README.md`는 템플릿이 테마 쪽
-> (`yk-theme/woocommerce/content-product.php`)에 있어야 한다고 적고 있지만,
-> 실제 구현은 **플러그인 내부**의 `woocommerce/content-product.php`를
-> `wc_get_template_part` 필터로 주입합니다. 테마 오버라이드는 필요하지 않습니다.
-> README를 손볼 일이 있으면 이 부분을 함께 바로잡으세요.
+> **The template lives inside the plugin.** `woocommerce/content-product.php` is injected
+> through the `wc_get_template_part` filter, so a theme override is **neither needed nor
+> allowed** — a theme-side `woocommerce/content-product.php` competes with this filter.
+> (1.x used the theme-override approach and the README said so. The README was corrected to
+> match reality in 2.0.0.)
 
-> **로드 순서 규칙**: `includes/`는 위 트리 순서대로 `require_once` 합니다.
-> 헬퍼(`functions-helpers.php`)가 항상 먼저 로드되어야 하고, 클래스들은 파일 로드
-> 시점에 각자의 `init()`에서 훅을 등록합니다(메인 파일 하단에서 호출).
-> `YK_WCGV_COLOR_KEYS` / `YK_WCGV_SIZE_KEYS`는 템플릿이 직접 참조하므로
-> **메인 파일 최상단의 전역 `const`로 유지**합니다 — 클래스 상수로 옮기지 마세요.
+> **Load order.** `includes/` files are `require_once`'d in the order shown above. The helpers
+> (`functions-helpers.php`) must always load first; each class registers its hooks in its own
+> `init()`, called at the bottom of the main file.
+> `YK_WCGV_COLOR_KEYS` / `YK_WCGV_SIZE_KEYS` may be referenced directly by child-theme
+> templates and site snippets, so **keep them as global `const`s at the top of the main file**.
+> Do not move them into class constants.
 >
-> **전역 wrapper 함수 유지**: `yk_wcgv_get_settings()`, `yk_wcgv_i18n()`,
-> `yk_wcgv_build_product_data()`는 클래스 메서드로 옮겨졌지만 동일 이름의 전역
-> wrapper가 남아 있습니다. `woocommerce/content-product.php`가 `function_exists()`로
-> 호출하므로 wrapper를 제거하면 카드가 조용히 망가집니다.
+> **Keep the global wrapper functions.** `yk_wcgv_get_settings()`, `yk_wcgv_i18n()` and
+> `yk_wcgv_build_product_data()` moved into classes, but identically named global wrappers
+> remain. `woocommerce/content-product.php` calls them through `function_exists()`, so removing
+> a wrapper breaks the card silently.
+> (`yk_wcgv_sanitize_settings()` had no call sites at all and was removed in 2.0.0.)
 
-### 주요 심볼
+### Key symbols
 
-| 심볼 | 역할 |
+| Symbol | Role |
 |------|------|
-| `YK_WCGV_VERSION` / `YK_WCGV_FILE` / `YK_WCGV_DIR` / `YK_WCGV_URL` | 상수. 버전은 asset 캐시 버스팅에도 사용 |
-| `YK_WCGV_COLOR_KEYS` | style 판정 폴백(규칙 2)용 색상 키워드 목록 (en/de/fr) |
-| `YK_WCGV_SIZE_KEYS` | **STEP 3부터 아카이브에서는 미사용.** 템플릿·단일 상품 페이지 호환용으로만 유지 |
-| `YK_WCGV_SWATCH_IMAGE_SIZE` | `yk_wcgv_swatch` (96×96 crop). 페이로드 스와치 이미지 URL 크기. 관리자 목록은 `thumbnail` 유지 |
-| `yk_wcgv_term_has_swatch_meta()` | raw term meta에 유효한 스와치 값이 있는지. **style 판정은 반드시 이걸로** |
-| `yk_wcgv_attr_matches()` | slug 또는 label에 키워드가 포함되는지 판정 |
-| `yk_wcgv_build_product_data()` | 루프에서 모은 ID → JS payload 배열 (`YK_WCGV_Data::build_product_data()` wrapper) |
-| `yk_wcgv_resolve_color()` | 색상 slug/label → hex. 미매칭 시 hex 문자열 판정 → `#cccccc` (`YK_WCGV_COLOR_FALLBACK`) |
-| `yk_wcgv_get_swatch()` | term의 최종 스와치 표현 조회. 이미지 > term meta HEX > 이름 맵 > none. 요청 단위 static 캐시 |
-| `yk_wcgv_parse_swatch_colors()` | `"#000,#ffcc00"` → 검증된 hex 0~2개 배열 (3개째부터 버림) |
-| `yk_wcgv_is_light_color()` | WCAG 상대 휘도 > 0.5 이면 true |
-| `YK_WCGV_META_SWATCH_COLOR` / `_IMAGE_ID` | term meta 키 상수. 관리자 클래스와 조회 헬퍼의 단일 출처 |
-| `yk_wcgv_get_settings()` | 옵션 `yk_wcgv_settings` + 기본값 병합 (`YK_WCGV_Settings::get()` wrapper) |
-| `yk_wcgv_i18n()` | JS로 내려가는 번역 문자열의 단일 출처 (`YK_WCGV_I18n::strings()` wrapper, WPML 등록도 여기서 재사용) |
-| `$GLOBALS['yk_wcgv_product_ids']` | 루프 훅 → `wp_footer` 주입 사이에 공유되는 상품 ID 배열. 클래스 프로퍼티로 바꾸지 말 것 |
+| `YK_WCGV_VERSION` / `YK_WCGV_FILE` / `YK_WCGV_DIR` / `YK_WCGV_URL` | Constants. The version doubles as asset cache busting |
+| `YK_WCGV_COLOR_KEYS` | Colour keyword list (en/de/fr) for the style fallback (rule 2) |
+| `YK_WCGV_SIZE_KEYS` | **Read nowhere in the plugin.** Kept as a public constant for 1.x-era snippets only |
+| `YK_WCGV_Settings::style_variations()` | Style variation `title`s of the active theme. The only source for the settings dropdown |
+| `YK_WCGV_SWATCH_IMAGE_SIZE` | `yk_wcgv_swatch` (96×96 crop). The default `$image_size` of `yk_wcgv_get_swatch()`, so it applies **everywhere** — payload swatch URLs *and* the admin preview column |
+| `yk_wcgv_term_has_swatch_meta()` | Whether raw term meta holds a valid swatch value. **Style decisions must use this** |
+| `yk_wcgv_attr_matches()` | Whether a slug or label contains one of the keywords |
+| `yk_wcgv_build_product_data()` | IDs collected in the loop → JS payload array (`YK_WCGV_Data::build_product_data()` wrapper) |
+| `yk_wcgv_resolve_color()` | Colour slug/label → hex. On no match, tests for a hex string, then `#cccccc` (`YK_WCGV_COLOR_FALLBACK`) |
+| `yk_wcgv_get_swatch()` | A term's final swatch representation. Image > term meta HEX > name map > none. Per-request static cache |
+| `yk_wcgv_parse_swatch_colors()` | `"#000,#ffcc00"` → an array of 0–2 validated hex values (a third and beyond are discarded) |
+| `yk_wcgv_is_light_color()` | True when the WCAG relative luminance exceeds 0.5 |
+| `YK_WCGV_META_SWATCH_COLOR` / `_IMAGE_ID` | Term meta key constants. Single source for the admin class and the lookup helper |
+| `yk_wcgv_get_settings()` | Option `yk_wcgv_settings` merged with the defaults (`YK_WCGV_Settings::get()` wrapper) |
+| `yk_wcgv_i18n()` | Single source for the translated strings sent to JS (`YK_WCGV_I18n::strings()` wrapper; WPML registration reuses it) |
+| `$GLOBALS['yk_wcgv_product_ids']` | Product ID array shared between the loop hook and the `wp_footer` injection. Do not turn this into a class property |
 
-CSS는 `--yk-*` 커스텀 프로퍼티를 `:root`에 정의하고, 값은 테마의
-`--wp--preset--color--*`를 참조합니다. 사이트별 색상 조정은 개별 규칙이 아니라
-`body.yk-variant-{slug}` 블록에서 **토큰만 덮어쓰는** 방식으로 합니다
-(`yk_wcgv_variant_body_class()`가 활성 style variant 제목으로 클래스를 붙입니다).
+> **Why the admin preview also uses 96×96 and not `thumbnail`.**
+> `render_preview_column()` calls `yk_wcgv_get_swatch()` without a size argument, so it inherits
+> the 96×96 default — and that is correct, not an oversight. The preview chips are 32px (list
+> column) and 28px (edit form), so 96px is a clean 3× source that stays sharp on retina
+> displays, while still being **smaller than WordPress's `thumbnail`** (150×150 by default).
+> Switching to `thumbnail` would download more bytes for a blurrier chip. **Do not "fix" this
+> back to `thumbnail`.**
+
+The CSS defines `--yk-*` custom properties on `:root`, whose values reference the theme's
+`--wp--preset--color--*`. Per-site colour adjustments are made by **overriding tokens only**
+inside a `body.yk-variant-{slug}` block, never by editing individual rules
+(`yk_wcgv_variant_body_class()` adds that class from the active style variant title).
 
 ---
 
-## 4. 코딩 규칙
+## 4. Coding rules
 
 ### PHP
 
-- **WordPress Coding Standards**를 따릅니다. 들여쓰기는 **탭**(스페이스 금지).
-  괄호 안 공백(`func( $arg )`), Yoda 조건(`'bundle' === $type`) 등 기존 파일의
-  스타일을 그대로 유지하세요.
-- **출력은 반드시 이스케이프합니다.**
-  - 텍스트: `esc_html()` / `esc_html_e()`
-  - 속성값: `esc_attr()` / `esc_attr_e()`
-  - URL: `esc_url()`
-  - HTML 허용이 필요한 곳(가격 HTML 등): `wp_kses_post()`
-  - 예외적으로 `$product->get_image()`처럼 코어가 이미 안전한 마크업을 반환하는
-    경우만 그대로 출력합니다.
-- **모든 폼 / AJAX 요청은 nonce 검증 + capability 체크**를 거칩니다.
-  - 설정 폼은 Settings API(`settings_fields()` + `register_setting()`)를 쓰므로
-    nonce가 자동 처리되며, 렌더 함수는 `current_user_can( 'manage_woocommerce' )`로
-    시작합니다. 메뉴 등록 capability도 동일합니다.
-  - 새 AJAX 엔드포인트(`wp_ajax_*` / `wc-ajax`)를 추가한다면
-    `check_ajax_referer()` + `current_user_can()`를 **둘 다** 넣으세요.
-    현재 장바구니 담기는 WooCommerce 자체의 `add_to_cart` 엔드포인트를 쓰므로
-    별도 커스텀 엔드포인트가 없습니다 — 새로 만들지 말고 가능하면 코어 엔드포인트를
-    계속 사용하세요.
-  - 저장 값은 `yk_wcgv_sanitize_settings()`처럼 sanitize 콜백에서 화이트리스트
-    방식으로 정제합니다 (`sanitize_key()`, `'1'`/`'0'` 정규화 등).
-- **텍스트 도메인은 `'yk-wc-grid-variations'`** 하나만 사용합니다.
-  하드코딩된 사용자 노출 문자열을 만들지 마세요.
-- **신규 함수/상수 prefix는 `yk_wcgv_` / `YK_WCGV_`, 클래스는 `YK_WCGV_`** 입니다.
-  전역 오염을 피하기 위해 prefix 없는 이름은 금지입니다.
-- PHP 최소 버전은 **7.4** 입니다. `?->`, `match`, enum, named argument 등
-  8.0+ 문법을 쓰지 마세요. (`??`, arrow function, typed property는 가능)
+- Follow the **WordPress Coding Standards**. Indent with **tabs**, never spaces. Keep the
+  existing style: spaces inside parentheses (`func( $arg )`), Yoda conditions
+  (`'bundle' === $type`).
+- **Always escape output.**
+  - Text: `esc_html()` / `esc_html_e()`
+  - Attribute values: `esc_attr()` / `esc_attr_e()`
+  - URLs: `esc_url()`
+  - Where HTML must be allowed (price markup, for instance): `wp_kses_post()`
+  - Print unescaped only where core already returns safe markup, such as
+    `$product->get_image()`.
+- **Every form and AJAX request needs nonce verification, and a capability check where it
+  applies.**
+  - The settings form uses the Settings API (`settings_fields()` + `register_setting()`), which
+    handles the nonce, and the render function starts with
+    `current_user_can( 'manage_woocommerce' )`. The menu registration uses the same capability.
+  - Any new AJAX endpoint (`wp_ajax_*` / `wc-ajax`) must verify a nonce. The infinite-scroll
+    endpoint (`YK_WCGV_Ajax`) is a **public endpoint that logged-out visitors use**, so it is
+    protected by `check_ajax_referer()` plus a query var whitelist and deliberately has no
+    capability check. An admin-only endpoint must have `current_user_can()` as well.
+    Add-to-cart uses WooCommerce's own `add_to_cart` endpoint — do not build a new one; keep
+    using core endpoints wherever possible.
+  - Sanitise stored values in a whitelist-style callback, as `YK_WCGV_Settings::sanitize()`
+    does (`sanitize_key()`, normalising to `'1'`/`'0'`, and so on).
+- **Use exactly one text domain: `'yk-wc-grid-variations'`.** Never hardcode a user-facing
+  string.
+- **Prefix new functions and constants with `yk_wcgv_` / `YK_WCGV_`, and classes with
+  `YK_WCGV_`.** Unprefixed names are forbidden — they pollute the global namespace.
+- The PHP floor is **7.4**. Do not use 8.0+ syntax: no `?->`, `match`, enums or named
+  arguments. (`??`, arrow functions and typed properties are fine.)
 
 ### JS
 
-- 빌드 스텝이 없습니다. `assets/js/*.js`는 브라우저가 그대로 로드합니다.
-  번들러/트랜스파일을 도입하지 마세요.
-- 파일 전체를 IIFE로 감싸고 `'use strict'`를 유지합니다.
-- DOM 조작은 vanilla JS를 쓰고, jQuery는 **WooCommerce 이벤트 연동**
-  (`added_to_cart` 트리거, `reset_data` 수신)에만 사용합니다.
-- 사용자 데이터가 들어가는 삽입은 `textContent` 또는 `escHtml()`을 쓰고,
-  `innerHTML`에 미정제 값을 넣지 마세요.
+- There is no build step. Browsers load `assets/js/*.js` as-is. **Do not introduce a bundler or
+  a transpiler.**
+- Keep each file wrapped in an IIFE with `'use strict'`.
+- Use vanilla JS for DOM work. jQuery is for **WooCommerce event interop only** (firing
+  `added_to_cart`, listening for `reset_data`).
+- Insert user data with `textContent` or `escHtml()`. **Never put an unsanitised value into
+  `innerHTML`.**
 
 ### CSS
 
-- 새 색상/반경 값은 하드코딩하지 말고 `--yk-*` 토큰으로 정의하거나 기존 토큰을 씁니다.
-- `!important`는 WooCommerce/테마 기본 스타일을 이겨야 하는 경우로 한정합니다
-  (기존 코드의 사용처가 그 예시입니다).
-- 아카이브 클래스는 `.yk-`, 단일 상품 페이지 클래스는 `.yk-sp-` prefix를 씁니다.
+- Do not hardcode new colour or radius values — define a `--yk-*` token or use an existing one.
+- Limit `!important` to cases that must beat WooCommerce or theme defaults (the existing uses
+  are the examples).
+- Archive classes use the `.yk-` prefix; single product page classes use `.yk-sp-`.
 
-### 하위 호환
+### Backwards compatibility
 
-- **기존 옵션 키 `yk_wcgv_settings`는 삭제하지 않습니다.**
-  스키마를 바꿔야 하면 마이그레이션 코드로 처리하세요:
-  기존 값을 읽어 새 형태로 변환 → 저장하고, `yk_wcgv_get_settings()`의
-  `wp_parse_args()` 기본값으로 누락 키를 메웁니다.
-  옵션 키 이름 변경, 값 삭제, `delete_option()` 호출은 금지입니다.
-- 기존 CSS 클래스 훅(`.yk-card`, `.yk-swatch`, `.yk-size`, `.yk-qty-*`,
-  `.yk-add-to-cart` 등)도 테마·사이트 커스텀 CSS가 의존할 수 있으므로
-  이름을 바꾸지 말고 필요하면 추가하세요.
-- 사용자 노출 문자열을 바꿀 때는 `yk_wcgv_i18n()`과
-  `yk_wcgv_register_wpml_strings()`의 목록을 함께 갱신하세요.
-  두 곳이 어긋나면 WPML 번역이 끊깁니다.
+- **Never delete the existing option key `yk_wcgv_settings`.** If the schema has to change,
+  handle it with migration code: read the old value, convert it, save it, and let the
+  `wp_parse_args()` defaults in `yk_wcgv_get_settings()` fill in missing keys. Renaming the
+  option key, deleting values, or calling `delete_option()` is forbidden.
+- The existing CSS class hooks (`.yk-card`, `.yk-swatch`, `.yk-size`, `.yk-qty-*`,
+  `.yk-add-to-cart`, …) may be relied on by theme and site CSS. Do not rename them; add new
+  ones if you need them.
+- When you change a user-facing string, update the lists in `yk_wcgv_i18n()` **and**
+  `yk_wcgv_register_wpml_strings()` together. If the two drift apart, WPML translation breaks.
 
-### ⚠️ 버전 — 작업 단계(STEP)마다 올리지 마세요
+### Version — 2.0.0 is the confirmed release
 
-> **STOP — 버전 번호를 건드리기 전에 읽으세요.**
+> **2.0.0 is confirmed as the release number.** It was decided by reviewing the full set of
+> changes across STEP 1–9, and it is set in both the plugin header `Version:` and the
+> `YK_WCGV_VERSION` constant. The change log is in `CHANGELOG.md`.
 >
-> - **STEP 단위로 버전을 올리지 않습니다.** asset(CSS/JS)을 수정했더라도,
->   기능을 추가했더라도, 개발 중인 STEP에서는 **그대로 둡니다.**
-> - **릴리스 버전은 STEP 8에서 한 번만 정합니다.** 그때 전체 변경분을 보고
->   최종 번호를 결정해 `Version:` 헤더와 `YK_WCGV_VERSION`을 함께 올립니다.
-> - 문서나 주석에서 변경 이력을 가리킬 때는 버전 번호 대신 **STEP 번호**를
->   쓰세요 (`since STEP 3`, `STEP 3~`). 아직 확정되지 않은 번호를 문서에
->   박아 넣으면 STEP 8에서 전부 고쳐야 합니다.
-> - 개발 중 캐시 문제는 브라우저 하드 리프레시로 해결하세요. 캐시 버스팅을
->   이유로 버전을 올리지 않습니다.
->
-> 실제로 STEP 2·STEP 3에서 이 규칙을 어겨 2.0.0 → 2.1.0 → 2.2.0으로 올라갔다가
-> 되돌린 적이 있습니다.
+> During development the rule was not to bump the version per STEP — a rule that was actually
+> broken in STEP 2 and STEP 3, taking it from 2.0.0 to 2.1.0 to 2.2.0 before it had to be
+> reverted. **This is the one deliberate bump, at release time.**
 
-STEP 8에서 실제로 버전을 올릴 때는 플러그인 헤더의 `Version:`과 상수
-`YK_WCGV_VERSION` **둘 다** 수정해야 합니다. `YK_WCGV_VERSION`은 CSS/JS
-enqueue의 캐시 버스터로도 쓰입니다.
+**Rules from the next release onward:**
+
+- Bump the version **only when releasing.** Do not bump it because you added a feature or
+  edited CSS/JS — cache problems during development are already solved by
+  `yk_wcgv_asset_version()` below.
+- When you do bump it, update **all three**: the plugin header `Version:`, the
+  `YK_WCGV_VERSION` constant, and a new section in `CHANGELOG.md`.
+- Follow SemVer. In particular, **a payload schema change, removing a settings key, or
+  removing a global function is a major bump** — that is exactly why 2.0.0 is major
+  (`color_attr`/`size_attr` → `attributes`, the `visible_attrs` UI removed,
+  `yk_wcgv_sanitize_settings()` removed).
+- Comments and documentation now reference history by **version number** (`since 2.0.0`), not
+  by STEP number. STEP numbers survive only inside the development records in the engagement
+  folder outside this repository (see §5, "Measurement records live outside this repository").
+
+### Asset caching during development (solved without bumping the version)
+
+With the version frozen, the `yk-wcgv.js?ver=2.0.0` URL never changes and browsers keep serving
+the old file. In STEP 8 this led to price swapping being diagnosed as "not working" when it
+worked fine as soon as the browser cache was cleared.
+
+That is why **every** enqueue goes through `yk_wcgv_asset_version( 'assets/js/…' )`:
+
+| Environment | Return value |
+|---|---|
+| `WP_DEBUG === true` | The file's `filemtime()` — save the file and the next refresh picks it up |
+| `WP_DEBUG === false` (production) | `YK_WCGV_VERSION` — one cacheable URL per release |
+| File unreadable | `YK_WCGV_VERSION` (fallback) |
+
+Register every new CSS/JS file through this helper. Passing the constant directly brings the
+development cache problem straight back.
 
 ---
 
-## 5. 알려진 제약 — 블록 기반 Product Collection 블록과 비호환
+## 5. Known limitations — incompatible with the block-based Product Collection block
 
-이 플러그인은 WooCommerce의 **classic 템플릿 경로**
-(`wc_get_template_part( 'content', 'product' )`)를 통해서만 카드를 렌더링합니다.
-그래서 메인 파일에서 다음 필터로 classic 템플릿을 강제하고 있습니다:
+This plugin renders its cards through WooCommerce's **classic template path**
+(`wc_get_template_part( 'content', 'product' )`) and nothing else. The main plugin file
+forces that path on:
 
 ```php
 add_filter( 'option_wc_blocks_use_blockified_product_grid_block_as_template', fn() => 'no' );
 ```
 
-결과적으로:
+Consequences:
 
-- **shop / 카테고리 / 태그 아카이브를 사이트 편집기의 Product Collection 블록으로
-  만들면 안 됩니다.** 해당 블록은 자체 마크업으로 그리드를 그리기 때문에
-  `wc_get_template_part` 훅을 전혀 타지 않고, `.yk-card` 스와치·사이즈 필·
-  수량 스테퍼·AJAX 장바구니가 모두 나타나지 않습니다.
-- 아카이브는 classic / 템플릿 기반 그리드를 유지해야 합니다.
-- 이 옵션 이름은 WooCommerce 내부 구현에 의존하므로 **WooCommerce 메이저 업그레이드
-  때마다 이 필터가 여전히 유효한지 재검증**해야 합니다. 필터가 무력화되면
-  카드가 통째로 사라지는 형태로 실패합니다.
+- **Do not build shop / category / tag archives with the Site Editor's Product Collection
+  block.** That block emits its own grid markup and never reaches the `wc_get_template_part`
+  hook, so the `.yk-card` swatches, pills, quantity stepper and AJAX add-to-cart all vanish.
+- Archives must stay on the classic / template-based grid.
+- That option name is WooCommerce-internal. **Re-verify this filter after every major
+  WooCommerce upgrade.** When it stops working, the failure mode is the cards disappearing
+  wholesale — not an error you will notice in a log.
 
-### 그 외 제약
+### Variation price / SKU (STEP 8)
 
-- **설정의 "Visible attributes"는 STEP 3에서 제거됐습니다.** 속성은 이제 자동 탐지되므로
-  수동 화이트리스트가 필요 없습니다. 옵션 키 `yk_wcgv_settings['visible_attrs']`는
-  **삭제하지 않고 남겨두되 빈 배열로 1회 마이그레이션**합니다
-  (`YK_WCGV_Settings::maybe_migrate()`, `init` 훅, 프론트에서도 실행).
-  완료 플래그와 이전 값은 별도 옵션 `yk_wcgv_migrations`에 보관합니다.
-  남아 있던 화이트리스트를 지우지 않으면 신규 속성이 안 보이는 유령 버그가 됩니다.
-- 카드 표시에는 `is_shop() || is_product_category() || is_product_tag() ||
-  is_product_taxonomy()` 조건이 걸려 있습니다. 검색 결과·관련 상품·숏코드
-  그리드에서는 기본 WooCommerce 카드가 나옵니다.
-- **[알려진 버그 — 미수정, `TODO(v2 STEP4)`]** `wp` 훅
-  (`YK_WCGV_Template::remove_default_loop_hooks()`)에서 WooCommerce 기본 루프 래퍼
-  액션 3개 (`woocommerce_template_loop_product_link_open` / `_close`,
-  `woocommerce_template_loop_add_to_cart`)를 **조건 없이** `remove_action` 합니다.
-  이 제거는 **전역**이라 아카이브가 아닌 곳 — 연관상품, 업셀/크로스셀,
-  `[products]` 숏코드 그리드 — 에도 영향을 줍니다. 그 루프들은 기본 WooCommerce
-  카드로 렌더되는데 상품 링크 래퍼와 기본 장바구니 버튼이 사라집니다.
-  실제 버그이며 STEP4에서 아카이브 페이지로 스코프를 좁혀 수정할 예정입니다.
-  (v2.0.0 리팩터링은 순수 구조 분리라 동작을 그대로 보존했습니다.)
-- **term 스와치(term meta)는 글로벌 속성(`pa_*`)에만 적용됩니다.** 상품별 로컬
-  커스텀 속성은 term이 존재하지 않아 term meta를 붙일 수 없고, 계속
-  `yk_wcgv_resolve_color()` 이름 맵으로만 색이 결정됩니다. 투톤 색상이 필요한
-  클라이언트는 해당 속성을 글로벌 속성으로 만들어야 합니다.
-- **WPML: term meta는 번역 term에 자동 복사되지 않습니다.** 번역된 색상 term은
-  스와치 색상/이미지가 비어 보입니다. `yk_wcgv_get_swatch()` 안에
-  `TODO(v2 STEP5)` 지점을 잡아뒀고, 원본(source) term meta로 폴백하는 처리를
-  거기서 추가하면 됩니다. 현재는 미구현입니다.
-- 관리자 화면 자산(`yk-wcgv-admin.js` + `wp_enqueue_media()`)은
-  `edit-tags.php` / `term.php` 이면서 taxonomy가 `pa_`로 시작할 때만 로드합니다.
-  다른 관리자 화면을 오염시키지 않도록 이 조건을 넓히지 마세요.
-- 아카이브 카드의 style 판정 폴백(규칙 2)은 여전히 속성 slug·label의
-  **부분 문자열 매칭**입니다. 새 언어를 지원하려면 `YK_WCGV_COLOR_KEYS`에 키워드를
-  추가하고, **단일 상품 페이지**는 아직 구 방식이므로 `yk-wcgv-product.js` 상단의
-  `COLOR_KEYS` / `SIZE_KEYS` 배열도 **같이** 갱신해야 합니다
-  (PHP와 JS에 값이 중복 정의되어 있습니다).
-- **단일 상품 페이지는 아직 색상/사이즈 2축 하드코딩입니다.** STEP 3의 "variation 속성
-  전부 표시"는 아카이브 카드(`window.ykWcgv`) 쪽만 적용됐습니다.
-- **페이로드 크기**: `window.ykWcgv`는 인라인 스크립트라 압축 전 크기가 그대로 HTML에
-  들어갑니다. 이미지 풀 도입 후 실측(합성 데이터, 이미지 URL/srcset 현실 길이 기준):
+- Each variation entry in the payload carries `sku` (a string) and `price` (an index into a
+  price pool). **Prices are pooled per product** in `prices[]`, the same trick as `images[]`
+  — measured: 149 variations produced only 44 distinct price strings (70% repeats) at roughly
+  230 B each. **Do not pool SKUs.** All 149 were unique, so a pool plus indices makes the
+  payload *bigger* (1,908 B → 2,355 B). Swap the card's price and SKU only once **every**
+  attribute is chosen and the variation resolves; while the selection is incomplete, keep the
+  server-rendered parent values (price range + parent SKU). Blanking them mid-selection makes
+  the whole grid flicker.
+- **Do not go back to `get_available_variations()`.** Build prices directly with
+  `wc_get_price_to_display()` + `wc_price()` (or `wc_format_sale_price()` when on sale), and
+  read them through the bulk priming path from STEP 6.
+- **Always include the price suffix** (`$variation->get_price_suffix()`). The card's
+  `.yk-price__tax` span is `display:none` in `yk-wcgv.css`, so the "inkl. MwSt." a shopper
+  actually sees *is* the WooCommerce suffix. Drop it and the suffix disappears the moment an
+  option is picked. (There is **no** global `wc_get_price_suffix()` function — it is a product
+  method.)
+- **The cache TTL never spans the next sale boundary** (`YK_WCGV_Data::cache_ttl()`). If a
+  scheduled sale starts in two hours, the TTL shrinks to 7260 seconds. Trusting the flat
+  12-hour TTL would keep showing pre-sale prices after the sale has started — a real revenue
+  bug, not a cosmetic one.
+- Price-related invalidation hooks: `woocommerce_product_object_updated_props`,
+  `wc_scheduled_sales`, `woocommerce_settings_saved`, and `update_option_*` for the currency
+  and tax options.
+- **★ WPML multi-currency.** Cache keys are already split per language (`_de` / `_fr` / `_en`)
+  and prices live inside those keys, so a language-equals-currency setup is safe as-is. But on
+  a site that switches **currency without switching language** (WCML's currency switcher), the
+  key cannot tell currencies apart and the wrong currency gets cached. Add the currency code to
+  `cache_key()` before deploying to such a site. The current dev site is three languages
+  (de/fr/en), single currency (CHF).
+- **Do not touch the single product page here.** WooCommerce's native `variations_form`
+  already updates price and SKU (verified: `.woocommerce-variation-price` and the theme's
+  "Artikelnummer" both change). Per the STEP 5 lesson, WooCommerce must remain the single
+  source of state.
 
-  | 시나리오 | variation이 부모 이미지 상속 | 색상별 이미지 | variation마다 고유 이미지 |
+### Infinite scroll (STEP 7)
+
+Configuration is **two layers plus filters**. The lower layer always defaults to "inherit".
+
+```
+Global settings (yk_wcgv_settings)
+  ├─ pagination_mode: 'pagination' | 'infinite'   (default 'pagination')
+  └─ prefetch_distance: px                        (default 400)
+       ↓ overridden by the category unless it is 'inherit'
+product_cat term meta (yk_wcgv_pagination_mode)
+  └─ 'inherit' | 'pagination' | 'infinite'        (default 'inherit')
+       ↓ the filter has the last word
+apply_filters( 'yk_wcgv_pagination_mode', $mode, $context )
+apply_filters( 'yk_wcgv_prefetch_distance', $px )
+```
+
+- The decision is made in exactly one place: `YK_WCGV_Settings::pagination_mode()`.
+  `$context` carries `is_shop`, `taxonomy`, `term_id`, `term_slug`.
+- **`class-yk-wcgv-category-meta.php` is `product_cat`-only; `class-yk-wcgv-term-meta.php` is
+  `pa_*`-only. Do not merge these two classes.** The moment you do, paging fields leak onto
+  attribute screens and swatch fields leak onto category screens.
+- **The absence of a Gutenberg block option is deliberate.** This plugin forces the classic
+  template through `option_wc_blocks_use_blockified_product_grid_block_as_template`, so it is
+  incompatible with the Product Collection block to begin with (see the section above).
+  Attaching paging options to that block would require block-compatible rendering first — a
+  separate project.
+
+**AJAX endpoint** (`class-yk-wcgv-ajax.php`)
+
+- It returns card markup plus the payload, nothing else. **Do not fetch and parse the next
+  page's full HTML** — that renders the header, menu and footer for nothing.
+- Client query vars are **whitelisted** (`ALLOWED_VARS` plus the `filter_*` / `query_type_*`
+  prefixes). `post_status`, `posts_per_page` and `meta_query` are **never** taken from the
+  request. The nonce is mandatory.
+- **Products per page comes from a value observed in the front-end loop and stored in an
+  option (`yk_wcgv_loop_per_page`).** `apply_filters( 'loop_shop_per_page', … )` resolves to a
+  different number under admin-ajax than on the front end, because themes commonly register
+  that filter behind `! is_admin()`. On this site it is 16 on the front end and 10 under
+  admin-ajax — leave it alone and page 2 starts in the middle of page 1.
+- `is_shop()` and friends are all false during AJAX, so
+  `YK_WCGV_Template::set_ajax_rendering( true )` is the flag that lets the template override
+  through.
+- Responses send `nocache_headers()` + `no-store`. This stack was observed caching
+  `/warenkorb/`.
+
+**Front end** (`assets/js/yk-wcgv-infinite.js`)
+
+- `IntersectionObserver`'s `rootMargin` starts the request **before** the sentinel is reached.
+- No cards means no sentinel. (On an archive that only shows subcategory tiles, a sentinel
+  would fetch empty page after empty page.)
+- `window.ykWcgvArchive.initCards()` is called on newly inserted nodes only, and `initCard()`
+  is idempotent behind its `data-yk-init` guard.
+- Pagination is **not removed from the DOM** — it is only hidden visually with
+  `.yk-pagination--hidden` (a clip rect). Crawlers and visitors without JS use it as-is, and
+  **the script un-hides it when a request fails.** That is why it must be hidden rather than
+  removed.
+- **Overlapping requests are prevented by a lock *and* an `AbortController`.** Even under
+  aggressive scrolling, five pages cost four requests. Keep only one of the two and you get
+  duplicate requests or out-of-order responses.
+- The script loads with `defer` and **observer registration is deferred to
+  `requestIdleCallback`.** This keeps it off the first-paint path — do not move it back to
+  `DOMContentLoaded`.
+- The URL is updated with `replaceState` to `?paged=N` — **not** `pushState`, which would add
+  a history entry per scroll position and wreck the back button.
+- **Measure the prefetch distance with a gradual scroll.** Jumping straight to the bottom puts
+  the sentinel on screen already and yields a negative number (measured: −747px). With a
+  gradual scroll, a configured 400px fired at an actual 386px (96.5%).
+- Raise `prefetch_distance` on slow servers. The dev site answers AJAX in roughly 5 seconds
+  per request, where 400px may not be enough lead (adjustable in the settings).
+- **If a site uses a different per-page count per archive**, the `yk_wcgv_loop_per_page`
+  option has to be extended to be per-category. Today it is a single site-wide value.
+
+### Measurement records live outside this repository
+
+The per-step measurement documents (STEP 6–9) and 29 screenshots are **deliberately excluded**
+from this repository. They live in `~/Downloads/yk-wcgv-engagement-2026-08/`.
+
+**Why:** this repository ships to more than one client, and those documents and screenshots
+carry Shop Attack's branding, real product names, product IDs and URLs. `.gitignore` excludes
+`*.csv` and `docs/` for the same reason — **do not revert that.**
+
+**★ This document must be enough to maintain the plugin without that folder.** Before the move,
+every piece of reasoning was audited out of those files and into CLAUDE.md (see "The payload
+injection must never die", "Performance decisions that are easy to undo", the infinite-scroll
+notes, and how to verify the term-meta path). When you measure something new, **write the
+conclusion and the reasoning here** and keep only the raw data in that folder.
+
+### Other constraints
+
+- **The "Visible attributes" setting was removed in STEP 3.** Attributes are discovered
+  automatically now, so a manual whitelist serves no purpose. The option key
+  `yk_wcgv_settings['visible_attrs']` is **kept, never deleted, and emptied by a one-time
+  migration** (`YK_WCGV_Settings::maybe_migrate()`, on `init`, running on the front end too).
+  The completion flag and the previous value are archived in a separate option,
+  `yk_wcgv_migrations`. Leave a stored whitelist in place and every newly added attribute
+  silently fails to appear — a ghost bug nobody will connect to this setting.
+- Cards are rendered only when `is_shop() || is_product_category() || is_product_tag() ||
+  is_product_taxonomy()`. Search results, related products and shortcode grids get the default
+  WooCommerce card.
+- **Removing the default loop wrappers applies to the archive loop only** (fixed in STEP 4).
+  Three actions are removed on `woocommerce_before_shop_loop`
+  (`woocommerce_template_loop_product_link_open` / `_close`,
+  `woocommerce_template_loop_add_to_cart`) and **restored at their original priorities** on
+  `woocommerce_after_shop_loop`. Related products, up-sells, cross-sells and the `[products]`
+  shortcode only call `woocommerce_product_loop_start()` and never fire those two actions, so
+  they are unaffected. The earlier global removal on the `wp` hook stripped the add-to-cart
+  button from every one of those loops — a real, shipped bug.
+  **Do not move this removal back to a global hook (`wp`, `init`, or similar).**
+  - Restoration only touches **what we actually removed** (`has_action()` records the original
+    priority). It never resurrects an action another plugin had deliberately detached.
+  - The template filter (`override_template_part`) calls the same removal as a **safety net**,
+    so that a theme which never fires `woocommerce_before_shop_loop` still does not end up with
+    a default `<a>` wrapper and a duplicate cart button inside `.yk-card`. Repeated calls are
+    idempotent behind the `$loop_hooks_removed` flag.
+- **Term swatches (term meta) work on global attributes (`pa_*`) only.** A product-level custom
+  attribute has no terms, so it cannot carry term meta and its colour always comes from the
+  `yk_wcgv_resolve_color()` name map. A client who needs a two-tone colour has to convert that
+  attribute into a global attribute.
+- **WPML does not copy term meta to translated terms.** A translated colour term shows no
+  swatch colour or image. There is a `KNOWN LIMITATION` comment at the term lookup inside
+  `yk_wcgv_get_swatch()`. Falling back to the source term's meta needs WPML's term-translation
+  API and was **deliberately not implemented in 2.0.0** — the operational fix is to set the
+  swatch on the translated term as well (documented in the README).
+- Admin assets (`yk-wcgv-admin.js` + `wp_enqueue_media()`) load only on `edit-tags.php` /
+  `term.php` when the taxonomy starts with `pa_`. **Do not widen that condition** — it exists
+  to keep every other admin screen clean.
+- The style fallback (rule 2) is still a **substring match** on the attribute slug and label.
+  Supporting another language now means editing `YK_WCGV_COLOR_KEYS` and nothing else. STEP 5
+  removed the duplicated `COLOR_KEYS` / `SIZE_KEYS` definitions from `yk-wcgv-product.js`, so
+  archives and product pages share one PHP decision.
+- **The `yk-variant-*` body class is chosen in the settings (solved in 2.0.0).**
+  Auto-detection is **impossible in principle**: when the Site Editor applies a variation it
+  copies only the `settings`/`styles` of the variation file
+  (`yk-theme/styles/sha.json` → `"title": "Shop Attack"`) into the `wp_global_styles` post and
+  drops the `title` (the post title is always `Custom Styles`), and **WordPress records the
+  active variation's name nowhere else.** So `yk_wcgv_variant_body_class()` now reads the
+  setting `yk_wcgv_settings['style_variant']` first. The list comes from
+  `YK_WCGV_Settings::style_variations()`, built from the `title`s returned by
+  `WP_Theme_JSON_Resolver::get_style_variations()`.
+  - Precedence is **setting → legacy auto-detection → the `yk_wcgv_style_variant` filter**, and
+    the filter wins. Sites that already force the variant through the filter keep working
+    unchanged.
+  - The setting stores the **title string verbatim** and is **not** whitelisted against the
+    current theme's variation list — switching themes and switching back would otherwise wipe
+    the choice. Output passes through `sanitize_html_class( sanitize_title() )`, so it is safe.
+  - If the active theme ships no style variations, the dropdown is not rendered and a hidden
+    input carries the stored value through the save. **Do not drop that hidden input**, or
+    saving the settings on such a theme silently clears the choice.
+- **`.yk-sp-reset` — the only way to clear a selection on the product page (2.0.0).**
+  A button below the attribute table, shown **only when at least one option is selected**.
+
+  **★ The reason for it changed (measured on dev, 2026-08).** It was introduced as an escape
+  from the dead-end state, but **the dead end does not reproduce on the current WooCommerce
+  version**: conflicting options are pre-disabled so the click never lands, and an invalid
+  combination in a deep link (`?attribute_…`) makes WooCommerce reset everything by itself.
+  (Verified exhaustively on a three-attribute, three-variation product — every reachable state
+  still had a way forward. Other catalogues may still hit it, so the feature stays.)
+
+  **The real reason it exists: in this theme WooCommerce's own `.reset_variations` ("Clear")
+  is `display:none` in every state** — verified even with a variation fully resolved and the
+  add-to-cart button enabled. Without this button the product page has **no way to clear a
+  selection at all**.
+  - **★ Do not write your own reset logic.** This button delegates to WooCommerce's
+    `.reset_variations` via `native.click()` and nothing more. Clearing the selects directly
+    would make this file a **second writer** on them — exactly the bug that silently wiped
+    shoppers' selections in STEP 5. If a theme or WooCommerce version ships no such link,
+    **the button is not rendered at all.**
+  - Visibility is updated through a **jQuery binding** (`$(form).on('change','select',…)`).
+    WooCommerce changes selects with jQuery's `.trigger('change')`, which runs jQuery handlers
+    without dispatching a native event, so `addEventListener` would miss it.
+  - **Do not add it to archive cards.** Cards cascade (each attribute is filtered only by the
+    ones before it), so they cannot dead-end by construction. Card height is expensive in a
+    grid, and this would only add a control nobody needs.
+- **Payload size.** `window.ykWcgv` is an inline script, so its uncompressed size lands
+  directly in the HTML. Measured after the image pool was introduced (synthetic data, realistic
+  image URL / srcset lengths):
+
+  | Scenario | Variations inherit the parent image | One image per colour | Unique image per variation |
   |---|---|---|---|
-  | 12상품 × 4색 × 4사이즈 | 141.7 → **41.7 KB** (−71%) | 142.6 → **60.9 KB** (−57%) | 143.5 → 138.7 KB (−3%) |
-  | 12상품 × 24색 × 6사이즈 | 1198 → **273 KB** (−77%) | 1207 → **421 KB** (−65%) | 1215 → 1199 KB (−1%) |
+  | 12 products × 4 colours × 4 sizes | 141.7 → **41.7 KB** (−71%) | 142.6 → **60.9 KB** (−57%) | 143.5 → 138.7 KB (−3%) |
+  | 12 products × 24 colours × 6 sizes | 1198 → **273 KB** (−77%) | 1207 → **421 KB** (−65%) | 1215 → 1199 KB (−1%) |
 
-  절감폭은 **이미지 공유 정도에 비례**합니다. variation마다 고유 이미지를 쓰면
-  풀이 곧 variation 수와 같아져 효과가 없습니다. 그 경우가 문제가 되면
-  STEP 6에서 `srcset` 자체를 줄이거나(후보 개수 축소) 지연 로딩을 검토하세요.
-- HPOS(custom order tables) 호환은 선언되어 있습니다
+  The saving is **proportional to how much images are shared**. Give every variation its own
+  image and the pool grows to the variation count, buying nothing. These numbers date from when
+  `srcset`/`sizes` were still shipped; both were dropped afterwards, so the real payload is
+  smaller than shown.
+- HPOS (custom order tables) compatibility is declared
   (`yk_wcgv_declare_hpos_compatibility`).
-
 ---
 
-## 6. 작업 시 체크리스트
+## 6. Checklist before you finish
 
-- [ ] PHP 들여쓰기가 탭인가, WPCS 스타일과 일치하는가
-- [ ] 새로 출력하는 값에 escape 함수가 붙었는가
-- [ ] 새 함수/상수에 `yk_wcgv_` / `YK_WCGV_` prefix가 있는가
-- [ ] 새 문자열에 `'yk-wc-grid-variations'` 텍스트 도메인이 붙었는가,
-      필요하면 `yk_wcgv_i18n()` / WPML 등록 목록에도 추가했는가
-- [ ] 옵션 스키마를 바꿨다면 기존 `yk_wcgv_settings` 값을 마이그레이션했는가
-- [ ] payload를 바꿨다면 PHP·JS·README를 모두 갱신했는가
-- [ ] ⚠️ 버전을 **건드리지 않았는가** (STEP 중에는 올리지 않음, STEP 8에서 한 번만)
-- [ ] PHP 7.4에서 동작하는 문법만 썼는가
+- [ ] PHP indented with tabs, matching the WPCS style of the surrounding files
+- [ ] Every newly printed value goes through an escape function
+- [ ] New functions/constants carry the `yk_wcgv_` / `YK_WCGV_` prefix
+- [ ] New strings carry the `'yk-wc-grid-variations'` text domain, and were added to
+      `yk_wcgv_i18n()` / the WPML registration list where relevant
+- [ ] If the option schema changed, existing `yk_wcgv_settings` values were migrated
+- [ ] If the payload changed, PHP, JS and the README were all updated
+- [ ] If you touched a swatch background, you used longhands
+      (`background-color` / `background-image`) — all four renderers (card template,
+      product-page JS, admin PHP preview, admin JS) use longhands
+- [ ] Version untouched unless this is a release. If it is, `Version:` header,
+      `YK_WCGV_VERSION` and `CHANGELOG.md` were **all three** updated
+- [ ] Only syntax that runs on PHP 7.4

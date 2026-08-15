@@ -36,6 +36,15 @@ class YK_WCGV_I18n {
 			// Attribute-agnostic since STEP 3: cards can show any variation attribute
 			// (Farbe, Grösse, Frequenz, …), so the message must not name specific ones.
 			'select_variation' => __( 'Bitte alle Optionen wählen.',     'yk-wc-grid-variations' ),
+			// Infinite scroll (STEP 7).
+			'loading'          => __( 'Produkte werden geladen …',       'yk-wc-grid-variations' ),
+			'all_loaded'       => __( 'Alle Produkte geladen.',          'yk-wc-grid-variations' ),
+			'load_error'       => __( 'Laden fehlgeschlagen.',           'yk-wc-grid-variations' ),
+			'retry'            => __( 'Erneut versuchen',                'yk-wc-grid-variations' ),
+			// Single product page: escape from a combination WooCommerce has locked down.
+			// WC hides its own "Clear" link until a variation resolves, so on a dead end
+			// there is no visible way out — see yk-wcgv-product.js.
+			'reset_selection'  => __( 'Auswahl zurücksetzen',            'yk-wc-grid-variations' ),
 		];
 	}
 
@@ -50,8 +59,10 @@ class YK_WCGV_I18n {
 		$strings = [
 			'sale_badge'          => 'SALE',
 			'art_nr'              => 'Art.-Nr.',
-			'available_colours'   => 'Available colours',
-			'available_sizes'     => 'Available sizes',
+			// NOTE: the former 'available_colours' / 'available_sizes' strings are gone —
+			// attribute groups now label themselves with the WooCommerce attribute label
+			// (translated by WPML's taxonomy translation), because a card can render any
+			// number of attributes, not just colour and size.
 			'decrease_quantity'   => 'Decrease quantity',
 			'increase_quantity'   => 'Increase quantity',
 			'quantity'            => 'Quantity',
@@ -62,6 +73,11 @@ class YK_WCGV_I18n {
 			'js_added'            => $i18n['added'],
 			'js_error'            => $i18n['error'],
 			'js_select_variation' => $i18n['select_variation'],
+			'js_loading'          => $i18n['loading'],
+			'js_all_loaded'       => $i18n['all_loaded'],
+			'js_load_error'       => $i18n['load_error'],
+			'js_retry'            => $i18n['retry'],
+			'js_reset_selection'  => $i18n['reset_selection'],
 		];
 
 		foreach ( $strings as $name => $value ) {

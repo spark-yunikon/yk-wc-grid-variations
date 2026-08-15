@@ -1,0 +1,17 @@
+# Site-specific material must never be committed. This repository is deployed to more than
+# one client, and measurement records carry that client's branding, product names, IDs and
+# URLs — screenshots as much as CSV dumps. They live in the engagement folder outside this
+# repo; the decisions they support are written up in CLAUDE.md. See CLAUDE.md §5,
+# "Measurement records live outside this repository".
+*.csv
+*.sql
+*.sql.gz
+docs/
+
+# macOS
+.DS_Store
+
+# Editor / tooling state
+.claude/
+.gstack/
+.ua/
