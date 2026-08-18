@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    wpml-config.xml — YK WC Grid Variations
+    =========================================================
+    Read by WPML when the plugin is active.
+
+    User-facing UI strings are NOT declared here. They are ordinary gettext
+    strings in the 'yk-wc-grid-variations' text domain and are translated by
+    languages/yk-wc-grid-variations-{locale}.mo — the same arrangement the
+    YK Starter theme uses for its own 'frost' domain. Before 2.1.0 the plugin
+    also pushed every string into WPML String Translation with
+    icl_register_string(); nothing ever read those entries back (all output goes
+    through __()), so translating them there had no effect. That block is gone.
+
+    What this file does declare is term meta, which WPML does not copy to
+    translated terms on its own.
+    =========================================================
+-->
+<wpml-config>
+
+    <!--
+        Swatch term meta lives on pa_* attribute terms; the paging override lives
+        on product_cat terms. Neither value is text: a HEX pair, an attachment ID
+        and a mode keyword are language-independent, so 'copy' is correct — an
+        editor should not have to retype #1a1a1a in three languages.
+
+        SCOPE, so this is not mistaken for a complete fix: WPML applies 'copy'
+        when a term translation is created or saved. Terms that were already
+        translated before this file shipped keep their empty meta, and still
+        resolve through the yk_wcgv_resolve_color() name map (see the KNOWN
+        LIMITATION note in yk_wcgv_get_swatch()). Re-save those translations
+        once, or set the swatch on them by hand.
+    -->
+    <custom-term-fields>
+        <custom-term-field action="copy">yk_wcgv_swatch_color</custom-term-field>
+        <custom-term-field action="copy">yk_wcgv_swatch_image_id</custom-term-field>
+        <custom-term-field action="copy">yk_wcgv_pagination_mode</custom-term-field>
+    </custom-term-fields>
+
+</wpml-config>

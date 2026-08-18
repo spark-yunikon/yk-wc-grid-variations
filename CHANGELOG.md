@@ -7,10 +7,76 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [Unreleased] — 2.1.0
 
-The archive card back to what the shop renders today. Three differences against the live
-site, two causes.
+Two pieces of work.
+
+**Translations**, aligned with the YK Starter theme (`yk-theme`). Before this, the plugin
+shipped no `languages/` directory at all, so **none of its 67 strings was translatable on any
+site** — the source language rendered everywhere regardless of the shopper's language.
+
+**The archive card and the single product stepper back to what the shop renders on its old
+theme.** Four differences reported against a live site, three causes — two of them the same
+story: moving from a classic theme to a block theme brought in rules the components had never
+had to defend themselves against.
+
+### Added
+
+- **`languages/`** — `yk-wc-grid-variations.pot` (67 msgids) plus complete German
+  (`de_DE`) and French (`fr_FR`) `.po` **and compiled `.mo`** catalogues. English needs no
+  catalogue: it is the source language.
+- **Text domain loader fallback.** `YK_WCGV_I18n::load_textdomain()` now checks
+  `is_textdomain_loaded()` after `load_plugin_textdomain()` and, if it came back false, loads
+  `languages/yk-wc-grid-variations-{locale}.mo` directly. Mirrors the theme's own loader
+  (`yk-theme/functions.php`), which exists because on some WP 6.7+ setups the documented call
+  returns without loading a readable `.mo`.
+- **`wpml-config.xml`** declaring `yk_wcgv_swatch_color`, `yk_wcgv_swatch_image_id` and
+  `yk_wcgv_pagination_mode` as `action="copy"`, so swatch term meta carries to a term
+  translation when it is created or saved. Partially mitigates the documented "WPML does not
+  copy term meta" limitation — it does **not** backfill terms translated before this release.
+
+### Changed
+
+- **All source strings are now English.** The shopper-facing msgids were German literals while
+  the admin strings were English; one catalogue cannot mix source languages. German is restored
+  through `de_DE.mo`, so a German site renders exactly as before.
+
+  | was (msgid) | now (msgid) | de_DE |
+  |---|---|---|
+  | `In den Warenkorb` | `Add to cart` | In den Warenkorb |
+  | `Zum Produkt` | `View product` | Zum Produkt |
+  | `inkl. MwSt.` | `incl. VAT` | inkl. MwSt. |
+  | `Art.-Nr.` | `Item no.` | Art.-Nr. |
+  | `Hinzugefügt` | `Added` | Hinzugefügt |
+  | `Fehler. Bitte erneut versuchen.` | `Error. Please try again.` | Fehler. Bitte erneut versuchen. |
+  | `Bitte alle Optionen wählen.` | `Please select all options.` | Bitte alle Optionen wählen. |
+  | `Produkte werden geladen …` | `Loading products …` | Produkte werden geladen … |
+  | `Alle Produkte geladen.` | `All products loaded.` | Alle Produkte geladen. |
+  | `Laden fehlgeschlagen.` | `Loading failed.` | Laden fehlgeschlagen. |
+  | `Erneut versuchen` | `Try again` | Erneut versuchen |
+  | `Auswahl zurücksetzen` | `Reset selection` | Auswahl zurücksetzen |
+
+- The JS fallback in `yk-wcgv-product.js` (used only if the payload carries no `i18n`) is
+  `'Reset selection'` instead of `'Auswahl zurücksetzen'`.
+- Settings label `Display Art.-Nr. / SKU beneath the product title` →
+  `Display item number / SKU beneath the product title`, so the English msgid no longer embeds a
+  German abbreviation. The German translation still reads "Art.-Nr. / SKU …".
+- **The Shop Attack variant no longer forces uppercase on `.yk-btn`.** German is the longest
+  label in the catalogue — `IN DEN WARENKORB` wrapped to two lines and changed the grid's row
+  height, and `HINZUGEFÜGT` ran past the button's edge with its check icon. The base
+  sentence-case label is what the site shows.
+- **The Shop Attack variant no longer repaints `.yk-add-to-cart.is-added` black.** The site's
+  add-to-cart confirmation is the base green, so the override only described a design the
+  shop has never run.
+
+### Removed
+
+- **`YK_WCGV_I18n::register_wpml_strings()` and its `init` priority-20 hook.** It called
+  `icl_register_string()` for every string, but nothing ever read those entries back — all
+  output goes through `__()`. The entries were keyed by handle name (`sale_badge`,
+  `zum_produkt`) while WPML keys gettext strings by msgid, so they never lined up: filling in
+  the WPML String Translation screen changed nothing on the front end. `.mo` is now the single
+  source for UI strings.
 
 ### Fixed
 
@@ -31,24 +97,21 @@ site, two causes.
   Measured: wrap 129.5px instead of 122px, the field 3.8px off centre. Both steppers now
   set `margin: 0`.
 
-### Changed
+### Notes
 
-- **The Shop Attack variant no longer forces uppercase on `.yk-btn`.** German is the longest
-  label in the catalogue — `IN DEN WARENKORB` wrapped to two lines and changed the grid's row
-  height, and `HINZUGEFÜGT` ran past the button's edge with its check icon. The base
-  sentence-case label is what the site shows.
-- **The Shop Attack variant no longer repaints `.yk-add-to-cart.is-added` black.** The site's
-  add-to-cart confirmation is the base green, so the override only described a design the
-  shop has never run.
-
-The variant's own job is untouched: its `--yk-*` tokens, the sale badge colour, the sale
-price and the error text all stay. Turning the variant off instead would not have worked —
-the default `--yk-danger` is the primary preset, which on this site is yellow, so the sale
-price and the validation message would have gone yellow on white.
-
-Version constants are deliberately not bumped here; they move at release time. Note that
-`yk_wcgv_asset_version()` falls back to `YK_WCGV_VERSION` whenever `WP_DEBUG` is off, so on a
-production site none of this is visible until the version moves or the cache is cleared.
+- Not a breaking release under SemVer: no payload field changed, no settings key was removed,
+  and no global function was removed (`yk_wcgv_i18n()` is untouched). `register_wpml_strings()`
+  was a class method hooked internally, never a documented entry point.
+- Version constants are **not** bumped in this branch. Per the repo rule, `Version:`,
+  `YK_WCGV_VERSION` and this heading move together in the release commit.
+- The Shop Attack variant's own job is untouched: its `--yk-*` tokens, the sale badge colour,
+  the sale price and the error text all stay. Turning the variant off instead of removing
+  those two rules would not have worked — the default `--yk-danger` is the primary preset,
+  which on this site is yellow, so the sale price and the validation message would have gone
+  yellow on white.
+- `yk_wcgv_asset_version()` falls back to `YK_WCGV_VERSION` whenever `WP_DEBUG` is off, so on a
+  production site none of the CSS above is visible until the version moves or the cache is
+  cleared.
 
 ---
 

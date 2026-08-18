@@ -277,7 +277,7 @@ class YK_WCGV_Settings {
 							<label>
 								<input type="checkbox" name="yk_wcgv_settings[show_sku]" value="1"
 									<?php checked( $settings['show_sku'], '1' ); ?>>
-								<?php esc_html_e( 'Display Art.-Nr. / SKU beneath the product title', 'yk-wc-grid-variations' ); ?>
+								<?php esc_html_e( 'Display item number / SKU beneath the product title', 'yk-wc-grid-variations' ); ?>
 							</label>
 						</td>
 					</tr>

@@ -53,7 +53,9 @@ If a client needs a two-tone swatch, that attribute has to become a global attri
 
 ### WPML does not copy term meta
 
-Translated colour terms do not inherit the source term's swatch colour or image, because WPML does not copy term meta to translations. A translated term therefore resolves through the colour-name map only, and may render grey where the source term renders a two-tone swatch. Set the swatch on each translated term as well.
+Translated colour terms do not inherit the source term's swatch colour or image, because WPML does not copy term meta to translations. A translated term therefore resolves through the colour-name map only, and may render grey where the source term renders a two-tone swatch.
+
+Since 2.1.0 `wpml-config.xml` declares the swatch meta keys as `action="copy"`, which covers term translations **created or saved from then on**. It does not backfill translations that already exist: re-save those once, or set the swatch on each translated term by hand.
 
 ---
 
@@ -291,6 +293,8 @@ State classes are shared between both screens: `is-active`, `is-disabled`, `is-l
     "99": { type: "simple", is_in_stock: true, max_qty: 9999 },
     "77": { type: "bundle" }
   },
+  // Already translated server-side: source msgids are English, these are the de_DE
+  // values from languages/yk-wc-grid-variations-de_DE.mo. See "Translations".
   i18n: {
     added:            "Hinzugefügt",
     error:            "Fehler. Bitte erneut versuchen.",
@@ -358,7 +362,8 @@ so a given attribute renders identically on both screens.
   // two-tone or image swatches. New code reads `attributes`.
   colors: { "rot": "#e53e3e", "weiss": "#ffffff" },
 
-  // Same strings as the archive payload, from the same PHP source.
+  // Same strings as the archive payload, from the same PHP source, already translated
+  // into the current language.
   i18n: { reset_selection: "Auswahl zurücksetzen", … }
 }
 ```
@@ -504,11 +509,30 @@ To add a new variant, add a CSS block scoped to `body.yk-variant-{your-slug}` in
 
 ---
 
-## WPML
+## Translations
 
-On `init` (priority 20), the plugin registers all user-facing strings with `icl_register_string()` under the context `yk-wc-grid-variations`. Translations set in the WPML String Translation screen are picked up automatically.
+Source strings are **English**, in the text domain `yk-wc-grid-variations`, and translations ship as compiled catalogues under `languages/`:
 
-Attribute group labels are not registered here — they come from the WooCommerce attribute label and are translated by WPML's taxonomy translation.
+```
+languages/
+├── yk-wc-grid-variations.pot          67 strings, the template to translate from
+├── yk-wc-grid-variations-de_DE.po/.mo German
+└── yk-wc-grid-variations-fr_FR.po/.mo French
+```
+
+This mirrors the YK Starter theme, which translates its own `frost` domain the same way. English needs no catalogue — it is the source language.
+
+`YK_WCGV_I18n::load_textdomain()` runs on `init` and calls `load_plugin_textdomain()`, then checks `is_textdomain_loaded()` and falls back to a direct `load_textdomain()` against `languages/yk-wc-grid-variations-{locale}.mo`. The theme carries the identical fallback: on some WP 6.7+ setups the documented call returns without loading even though the `.mo` is present and readable.
+
+**To edit a translation:** change the `.po`, then recompile the `.mo` (`msgfmt -o languages/yk-wc-grid-variations-de_DE.mo languages/yk-wc-grid-variations-de_DE.po`). WordPress reads the `.mo` only — an edited `.po` alone changes nothing. **To add a string:** regenerate the template with `wp i18n make-pot . languages/yk-wc-grid-variations.pot`, merge into each `.po` with `msgmerge -U`, translate, recompile.
+
+### WPML
+
+UI strings are **not** registered with WPML String Translation. Up to 2.0.0 the plugin called `icl_register_string()` for every string on `init` priority 20, but nothing ever read those entries back — all output goes through `__()` — so translating them in the String Translation screen had no effect. That block was removed in 2.1.0; the `.mo` files are now the single source.
+
+`wpml-config.xml` declares the plugin's term meta (`yk_wcgv_swatch_color`, `yk_wcgv_swatch_image_id`, `yk_wcgv_pagination_mode`) as `action="copy"`, so a HEX pair or attachment ID set on a source term carries over when a term translation is created or saved. This applies going forward only — terms translated before this file shipped keep their empty meta until re-saved (see *WPML does not copy term meta* above).
+
+Attribute group labels come from the WooCommerce attribute label and are translated by WPML's taxonomy translation, not by this plugin.
 
 The payload cache is keyed per language. **Multi-currency caveat:** if a site uses WCML to switch *currency* without switching language, the cache key does not distinguish currencies and can serve the wrong one. Add the currency code to `YK_WCGV_Data::cache_key()` before deploying to such a site. Language-per-currency setups (the tested configuration) are safe.
 
@@ -521,7 +545,7 @@ yk-wc-grid-variations/
 ├── yk-wc-grid-variations.php       Bootstrap: constants, includes, init(), HPOS declaration
 ├── includes/
 │   ├── functions-helpers.php       Swatch resolution, colour map, asset versioning
-│   ├── class-yk-wcgv-i18n.php      Text domain, JS strings, WPML registration
+│   ├── class-yk-wcgv-i18n.php      Text domain loading + JS-facing string table
 │   ├── class-yk-wcgv-settings.php  Settings page, defaults, sanitisation, migrations
 │   ├── class-yk-wcgv-data.php      Loop ID collection, payload builder, transient cache
 │   ├── class-yk-wcgv-assets.php    Enqueues and inline payload injection
@@ -540,7 +564,8 @@ yk-wc-grid-variations/
 │       ├── yk-wcgv-product.js      Single product page (select → swatch/pill, stepper)
 │       ├── yk-wcgv-infinite.js     Infinite scroll
 │       └── yk-wcgv-admin.js        Term screen (colour sync, media frame)
-└── languages/                      .po / .mo translation files (optional)
+├── wpml-config.xml                 WPML term-meta declarations (copy on translate)
+└── languages/                      .pot template + de_DE / fr_FR .po and .mo
 ```
 
 Development note: assets are enqueued through `yk_wcgv_asset_version()`, which returns `filemtime()` while `WP_DEBUG` is on and `YK_WCGV_VERSION` in production. Saving a CSS or JS file is enough to bust the cache on a dev site.

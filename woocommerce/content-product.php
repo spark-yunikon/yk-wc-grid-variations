@@ -160,13 +160,13 @@ $yk_swatch_classes = static function ( array $option ): string {
 			// with that suffix for screen readers; the visible one is the span below.
 			?>
 			<span class="yk-price__value"><?php echo wp_kses_post( $product->get_price_html() ); ?></span>
-			<span class="yk-price__tax"><?php esc_html_e( 'inkl. MwSt.', 'yk-wc-grid-variations' ); ?></span>
+			<span class="yk-price__tax"><?php esc_html_e( 'incl. VAT', 'yk-wc-grid-variations' ); ?></span>
 		</div>
 
 		<?php // 6. SKU / Art.-Nr. ?>
 		<?php if ( $sku && ( $settings['show_sku'] ?? '1' ) === '1' ) : ?>
 			<p class="yk-card__sku">
-				<?php esc_html_e( 'Art.-Nr.', 'yk-wc-grid-variations' ); ?>&nbsp;<strong><?php echo esc_html( $sku ); ?></strong>
+				<?php esc_html_e( 'Item no.', 'yk-wc-grid-variations' ); ?>&nbsp;<strong><?php echo esc_html( $sku ); ?></strong>
 			</p>
 		<?php endif; ?>
 
@@ -176,7 +176,7 @@ $yk_swatch_classes = static function ( array $option ): string {
 				href="<?php echo esc_url( $permalink ); ?>"
 				class="yk-btn yk-btn--outline"
 			>
-				<?php esc_html_e( 'Zum Produkt', 'yk-wc-grid-variations' ); ?>
+				<?php esc_html_e( 'View product', 'yk-wc-grid-variations' ); ?>
 			</a>
 		<?php else : ?>
 			<?php $show_qty = ( $settings['show_qty_stepper'] ?? '1' ) === '1'; ?>
@@ -210,7 +210,7 @@ $yk_swatch_classes = static function ( array $option ): string {
 					data-product-id="<?php echo esc_attr( $product_id ); ?>"
 					aria-label="<?php echo esc_attr( sprintf( /* translators: %s: product name */ __( 'Add %s to cart', 'yk-wc-grid-variations' ), $product->get_name() ) ); ?>"
 				>
-					<?php esc_html_e( 'In den Warenkorb', 'yk-wc-grid-variations' ); ?>
+					<?php esc_html_e( 'Add to cart', 'yk-wc-grid-variations' ); ?>
 				</button>
 			</div>
 		<?php endif; ?>
