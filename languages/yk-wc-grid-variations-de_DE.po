@@ -1,0 +1,342 @@
+# Copyright (C) 2026 Yunikon GmbH
+# This file is distributed under the same license as the YK WC Grid Variations plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: YK WC Grid Variations 2.0.0\n"
+"Report-Msgid-Bugs-To: https://yunikon.ch/\n"
+"POT-Creation-Date: 2026-08-17 00:00+0000\n"
+"PO-Revision-Date: 2026-08-17 00:00+0000\n"
+"Last-Translator: Yunikon GmbH <tech@yunikon.ch>\n"
+"Language-Team: German <de@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: de_DE\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: yk-wc-grid-variations\n"
+
+#: includes/class-yk-wcgv-category-meta.php:73
+#: includes/class-yk-wcgv-category-meta.php:87
+#: includes/class-yk-wcgv-category-meta.php:157
+msgid "Paging"
+msgstr "Seitennavigation"
+
+#. translators: %s: the global paging mode
+#: includes/class-yk-wcgv-category-meta.php:105
+msgid "Inherit global setting (%s)"
+msgstr "Globale Einstellung übernehmen (%s)"
+
+#: includes/class-yk-wcgv-category-meta.php:106
+msgid "infinite scroll"
+msgstr "Endlos-Scroll"
+
+#: includes/class-yk-wcgv-category-meta.php:106
+msgid "pagination"
+msgstr "Seitennummerierung"
+
+#: includes/class-yk-wcgv-category-meta.php:111
+#: includes/class-yk-wcgv-category-meta.php:180
+msgid "Pagination"
+msgstr "Seitennummerierung"
+
+#: includes/class-yk-wcgv-category-meta.php:114
+#: includes/class-yk-wcgv-category-meta.php:179
+#: includes/class-yk-wcgv-settings.php:327
+msgid "Infinite scroll"
+msgstr "Endlos-Scroll"
+
+#: includes/class-yk-wcgv-category-meta.php:118
+msgid "Applies to this category archive only."
+msgstr "Gilt nur für dieses Kategorie-Archiv."
+
+#: includes/class-yk-wcgv-category-meta.php:175
+msgid "inherit"
+msgstr "übernommen"
+
+#: includes/class-yk-wcgv-i18n.php:63
+msgid "Added"
+msgstr "Hinzugefügt"
+
+#: includes/class-yk-wcgv-i18n.php:64
+msgid "Error. Please try again."
+msgstr "Fehler. Bitte erneut versuchen."
+
+#: includes/class-yk-wcgv-i18n.php:67
+msgid "Please select all options."
+msgstr "Bitte alle Optionen wählen."
+
+#: includes/class-yk-wcgv-i18n.php:69
+msgid "Loading products …"
+msgstr "Produkte werden geladen …"
+
+#: includes/class-yk-wcgv-i18n.php:70
+msgid "All products loaded."
+msgstr "Alle Produkte geladen."
+
+#: includes/class-yk-wcgv-i18n.php:71
+msgid "Loading failed."
+msgstr "Laden fehlgeschlagen."
+
+#: includes/class-yk-wcgv-i18n.php:72
+msgid "Try again"
+msgstr "Erneut versuchen"
+
+#: includes/class-yk-wcgv-i18n.php:75
+msgid "Reset selection"
+msgstr "Auswahl zurücksetzen"
+
+#. Plugin name — proper noun, normally left untranslated.
+#: includes/class-yk-wcgv-settings.php:191
+#: includes/class-yk-wcgv-settings.php:192
+#: includes/class-yk-wcgv-settings.php:252
+msgid "YK Grid Variations"
+msgstr "YK Grid Variations"
+
+#: includes/class-yk-wcgv-settings.php:253
+msgid ""
+"Controls what is displayed on WooCommerce category, archive, and "
+"single product pages."
+msgstr ""
+"Steuert, was auf WooCommerce-Kategorie-, Archiv- und "
+"Einzelproduktseiten angezeigt wird."
+
+#: includes/class-yk-wcgv-settings.php:258
+msgid "Product Cards"
+msgstr "Produktkarten"
+
+#: includes/class-yk-wcgv-settings.php:259
+msgid "Applies to archive and category pages."
+msgstr "Gilt für Archiv- und Kategorieseiten."
+
+#: includes/class-yk-wcgv-settings.php:264
+msgid "Sale badge"
+msgstr "SALE-Badge"
+
+#: includes/class-yk-wcgv-settings.php:269
+msgid "Show SALE badge on discounted products"
+msgstr "SALE-Badge bei reduzierten Produkten anzeigen"
+
+#. Settings row label for the product item number.
+#: includes/class-yk-wcgv-settings.php:275
+msgid "SKU"
+msgstr "Art.-Nr."
+
+#: includes/class-yk-wcgv-settings.php:280
+msgid "Display item number / SKU beneath the product title"
+msgstr "Art.-Nr. / SKU unter dem Produkttitel anzeigen"
+
+#: includes/class-yk-wcgv-settings.php:286
+msgid "Variation swatches &amp; pills"
+msgstr "Varianten-Swatches &amp; Pills"
+
+#: includes/class-yk-wcgv-settings.php:291
+msgid "Show variation swatches and pills on category pages"
+msgstr "Varianten-Swatches und Pills auf Kategorieseiten anzeigen"
+
+#: includes/class-yk-wcgv-settings.php:294
+msgid ""
+"Every attribute marked \"Used for variations\" on the product is shown "
+"automatically, in the order set there."
+msgstr ""
+"Jedes Attribut, das beim Produkt als „Für Varianten verwendet“ "
+"markiert ist, wird automatisch angezeigt – in der dort festgelegten "
+"Reihenfolge."
+
+#: includes/class-yk-wcgv-settings.php:300
+msgid "Quantity stepper"
+msgstr "Mengen-Stepper"
+
+#: includes/class-yk-wcgv-settings.php:305
+msgid "Show +/− quantity stepper on product cards"
+msgstr "+/− Mengen-Stepper auf Produktkarten anzeigen"
+
+#: includes/class-yk-wcgv-settings.php:312
+msgid "Archive paging"
+msgstr "Archiv-Seitennavigation"
+
+#: includes/class-yk-wcgv-settings.php:314
+msgid ""
+"Individual categories can override this on their own edit screen "
+"(Products → Categories)."
+msgstr ""
+"Einzelne Kategorien können dies auf ihrer eigenen Bearbeitungsseite "
+"überschreiben (Produkte → Kategorien)."
+
+#: includes/class-yk-wcgv-settings.php:320
+msgid "Mode"
+msgstr "Modus"
+
+#: includes/class-yk-wcgv-settings.php:324
+msgid "Pagination (WooCommerce links)"
+msgstr "Seitennummerierung (WooCommerce-Links)"
+
+#: includes/class-yk-wcgv-settings.php:334
+msgid "Prefetch distance"
+msgstr "Vorlade-Distanz"
+
+#: includes/class-yk-wcgv-settings.php:340
+msgid ""
+"How far before the end of the list the next page starts loading. "
+"Raise it on slower servers so shoppers never see a spinner."
+msgstr ""
+"Wie weit vor dem Ende der Liste die nächste Seite zu laden beginnt. "
+"Auf langsameren Servern erhöhen, damit Kundinnen und Kunden nie "
+"einen Spinner sehen."
+
+#: includes/class-yk-wcgv-settings.php:347
+msgid "Theme style variation"
+msgstr "Theme-Stilvariante"
+
+#: includes/class-yk-wcgv-settings.php:349
+msgid ""
+"WordPress does not record which style variation is active, so it has "
+"to be selected here. The choice only adds a body class — it does not "
+"switch the variation itself."
+msgstr ""
+"WordPress speichert nirgends, welche Stilvariante aktiv ist – sie "
+"muss deshalb hier ausgewählt werden. Die Auswahl fügt lediglich eine "
+"Body-Klasse hinzu; sie wechselt die Variante nicht."
+
+#: includes/class-yk-wcgv-settings.php:355
+msgid "Active variation"
+msgstr "Aktive Variante"
+
+#: includes/class-yk-wcgv-settings.php:359
+msgid "The active theme ships no style variations."
+msgstr "Das aktive Theme enthält keine Stilvarianten."
+
+#: includes/class-yk-wcgv-settings.php:367
+msgid "— None —"
+msgstr "— Keine —"
+
+#. translators: %s: generated CSS body class, e.g. yk-variant-shop-attack
+#: includes/class-yk-wcgv-settings.php:380
+msgid ""
+"Adds %s to the body element, so the plugin stylesheet can override "
+"its --yk-* design tokens for this variation."
+msgstr ""
+"Fügt dem Body-Element %s hinzu, damit das Plugin-Stylesheet die "
+"--yk-*-Design-Tokens für diese Variante überschreiben kann."
+
+#: includes/class-yk-wcgv-settings.php:384
+msgid ""
+"Adds a body.yk-variant-* class so the plugin stylesheet can override "
+"its --yk-* design tokens for this variation."
+msgstr ""
+"Fügt eine body.yk-variant-*-Klasse hinzu, damit das "
+"Plugin-Stylesheet die --yk-*-Design-Tokens für diese Variante "
+"überschreiben kann."
+
+#: includes/class-yk-wcgv-settings.php:394
+msgid "Single Product Page"
+msgstr "Einzelproduktseite"
+
+#: includes/class-yk-wcgv-settings.php:399
+msgid "Enhanced variation UI"
+msgstr "Erweiterte Varianten-Oberfläche"
+
+#: includes/class-yk-wcgv-settings.php:404
+msgid ""
+"Replace variation dropdowns with swatches/pills and add +/− quantity "
+"stepper"
+msgstr ""
+"Varianten-Dropdowns durch Swatches/Pills ersetzen und +/− "
+"Mengen-Stepper hinzufügen"
+
+#: includes/class-yk-wcgv-term-meta.php:105
+msgid "Select swatch image"
+msgstr "Swatch-Bild auswählen"
+
+#: includes/class-yk-wcgv-term-meta.php:106
+msgid "Use this image"
+msgstr "Dieses Bild verwenden"
+
+#: includes/class-yk-wcgv-term-meta.php:120
+#: includes/class-yk-wcgv-term-meta.php:142
+msgid "Swatch colour"
+msgstr "Swatch-Farbe"
+
+#: includes/class-yk-wcgv-term-meta.php:124
+#: includes/class-yk-wcgv-term-meta.php:147
+msgid "Swatch image"
+msgstr "Swatch-Bild"
+
+#: includes/class-yk-wcgv-term-meta.php:181
+msgid "Primary colour"
+msgstr "Primärfarbe"
+
+#: includes/class-yk-wcgv-term-meta.php:188
+msgid "Second colour (two-tone)"
+msgstr "Zweite Farbe (zweifarbig)"
+
+#: includes/class-yk-wcgv-term-meta.php:192
+msgid "Single colour"
+msgstr "Einfarbig"
+
+#: includes/class-yk-wcgv-term-meta.php:200
+msgid ""
+"Single colour (#000000) or two-tone, comma separated "
+"(#000000,#ffcc00). Leave empty to fall back to the built-in "
+"colour-name map."
+msgstr ""
+"Einfarbig (#000000) oder zweifarbig, kommagetrennt "
+"(#000000,#ffcc00). Leer lassen, um auf die integrierte "
+"Farbnamen-Zuordnung zurückzufallen."
+
+#: includes/class-yk-wcgv-term-meta.php:224
+msgid "Select image"
+msgstr "Bild auswählen"
+
+#: includes/class-yk-wcgv-term-meta.php:227
+msgid "Remove"
+msgstr "Entfernen"
+
+#: includes/class-yk-wcgv-term-meta.php:231
+msgid "An image takes precedence over the colour above."
+msgstr "Ein Bild hat Vorrang vor der Farbe oben."
+
+#: includes/class-yk-wcgv-term-meta.php:316
+msgid "Swatch"
+msgstr "Swatch"
+
+#: includes/class-yk-wcgv-term-meta.php:356
+msgid "No swatch set"
+msgstr "Kein Swatch gesetzt"
+
+#. Discount badge on the product card. Left as "SALE" in de/fr by default — Swiss retail uses the English word across all three languages. Change per market if wanted.
+#: woocommerce/content-product.php:98
+msgid "SALE"
+msgstr "SALE"
+
+#: woocommerce/content-product.php:163
+msgid "incl. VAT"
+msgstr "inkl. MwSt."
+
+#: woocommerce/content-product.php:169
+msgid "Item no."
+msgstr "Art.-Nr."
+
+#: woocommerce/content-product.php:179
+msgid "View product"
+msgstr "Zum Produkt"
+
+#: woocommerce/content-product.php:186
+msgid "Decrease quantity"
+msgstr "Menge verringern"
+
+#: woocommerce/content-product.php:198
+msgid "Quantity"
+msgstr "Menge"
+
+#: woocommerce/content-product.php:200
+msgid "Increase quantity"
+msgstr "Menge erhöhen"
+
+#. translators: %s: product name
+#: woocommerce/content-product.php:211
+msgid "Add %s to cart"
+msgstr "%s in den Warenkorb legen"
+
+#: woocommerce/content-product.php:213
+msgid "Add to cart"
+msgstr "In den Warenkorb"

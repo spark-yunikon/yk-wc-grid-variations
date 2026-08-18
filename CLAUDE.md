@@ -335,7 +335,7 @@ yk-wc-grid-variations.php      Bootstrap: constants, require of includes, class 
                                HPOS compatibility declaration
 includes/
 ├── functions-helpers.php      yk_wcgv_attr_matches(), yk_wcgv_resolve_color()
-├── class-yk-wcgv-i18n.php     Text domain, JS strings, WPML registration
+├── class-yk-wcgv-i18n.php     Text domain loading (with fallback), JS string table
 ├── class-yk-wcgv-settings.php Settings page, get/sanitize
 ├── class-yk-wcgv-data.php     Loop ID collection, payload builder
 ├── class-yk-wcgv-assets.php   wp_enqueue_scripts, inline script injection
@@ -356,7 +356,8 @@ assets/
     ├── yk-wcgv-product.js     Single product page (select → swatch/pill, stepper)
     ├── yk-wcgv-infinite.js    Infinite scroll (IntersectionObserver, card append)
     └── yk-wcgv-admin.js       Admin term screen (colour input sync, media frame)
-languages/                     .po / .mo (optional)
+wpml-config.xml                WPML term-meta declarations (copy on translate)
+languages/                     .pot + de_DE / fr_FR .po and .mo  ★ required, not optional
 ```
 
 > **The template lives inside the plugin.** `woocommerce/content-product.php` is injected
@@ -396,7 +397,7 @@ languages/                     .po / .mo (optional)
 | `yk_wcgv_is_light_color()` | True when the WCAG relative luminance exceeds 0.5 |
 | `YK_WCGV_META_SWATCH_COLOR` / `_IMAGE_ID` | Term meta key constants. Single source for the admin class and the lookup helper |
 | `yk_wcgv_get_settings()` | Option `yk_wcgv_settings` merged with the defaults (`YK_WCGV_Settings::get()` wrapper) |
-| `yk_wcgv_i18n()` | Single source for the translated strings sent to JS (`YK_WCGV_I18n::strings()` wrapper; WPML registration reuses it) |
+| `yk_wcgv_i18n()` | Single source for the translated strings sent to JS (`YK_WCGV_I18n::strings()` wrapper) |
 | `$GLOBALS['yk_wcgv_product_ids']` | Product ID array shared between the loop hook and the `wp_footer` injection. Do not turn this into a class property |
 
 > **Why the admin preview also uses 96×96 and not `thumbnail`.**
@@ -474,8 +475,60 @@ inside a `body.yk-variant-{slug}` block, never by editing individual rules
 - The existing CSS class hooks (`.yk-card`, `.yk-swatch`, `.yk-size`, `.yk-qty-*`,
   `.yk-add-to-cart`, …) may be relied on by theme and site CSS. Do not rename them; add new
   ones if you need them.
-- When you change a user-facing string, update the lists in `yk_wcgv_i18n()` **and**
-  `yk_wcgv_register_wpml_strings()` together. If the two drift apart, WPML translation breaks.
+- When you change or add a user-facing string, update `languages/*.pot` **and both** `.po`
+  files **and recompile the `.mo`**. WordPress reads only the `.mo` — an edited `.po` alone
+  changes nothing on screen, and this is the failure that reads as "translation is broken".
+  (The old rule here said to keep `yk_wcgv_i18n()` and `yk_wcgv_register_wpml_strings()` in
+  sync. That registration is gone as of 2.1.0 — see "Translations" below.)
+
+### Translations — English source strings, `.mo` catalogues, no WPML String Translation (2.1.0)
+
+Aligned with the **YK Starter theme** (`yk-theme`, text domain `frost`), which translates the
+same way. Three things were wrong before 2.1.0, and all three are easy to reintroduce:
+
+1. **There was no `languages/` directory at all.** `load_plugin_textdomain()` pointed at a path
+   that did not exist, so **not one of the 67 strings was translatable** on any site. The symptom
+   is not an error — it is the source language rendering everywhere, which looks like a
+   deliberate choice rather than a bug.
+2. **Shopper-facing msgids were German literals** (`'In den Warenkorb'`, `'inkl. MwSt.'`,
+   `'Zum Produkt'`, `'Art.-Nr.'`, `'Hinzugefügt'`, …) while admin strings were English. A single
+   catalogue cannot sanely mix source languages. **All msgids are English now.** Write new ones
+   in English, whatever language the client's site runs in.
+3. **`icl_register_string()` was write-only.** `register_wpml_strings()` pushed every string into
+   WPML String Translation on `init` 20, but nothing ever called `icl_t()` — all output goes
+   through `__()`. Worse, the entries were registered under handle names (`sale_badge`,
+   `zum_produkt`), whereas WPML keys gettext strings by their **msgid**, so the two never lined
+   up. A translator could fill in the whole String Translation screen and see nothing change.
+   **The block is deleted. Do not add it back** — `.mo` is the single source for UI strings.
+
+```
+languages/
+├── yk-wc-grid-variations.pot           67 msgids, English, msgstr empty
+├── yk-wc-grid-variations-de_DE.po/.mo  German  (the pre-2.1.0 literals, restored)
+└── yk-wc-grid-variations-fr_FR.po/.mo  French
+```
+
+English ships no catalogue — it is the source language and falls through untranslated.
+
+- **★ WordPress reads the `.mo`, never the `.po`.** Editing a `.po` and skipping
+  `msgfmt` changes nothing on screen. This is the number-one way a translation gets diagnosed
+  as broken when the text is in fact correct.
+  `msgfmt -o languages/yk-wc-grid-variations-de_DE.mo languages/yk-wc-grid-variations-de_DE.po`
+- **The text domain loader has a deliberate fallback.** `load_textdomain()` calls
+  `load_plugin_textdomain()`, then checks `is_textdomain_loaded()` and, if that came back false,
+  loads `languages/yk-wc-grid-variations-{determine_locale()}.mo` directly. The theme carries the
+  identical belt-and-suspenders loader (`yk-theme/functions.php`, `init` priority 1) because on
+  some WP 6.7+ setups the documented call returns without loading a readable `.mo`. **Do not
+  delete the fallback as redundant** — it is a no-op when the first call worked.
+- **Do not call `YK_WCGV_I18n::strings()` at file scope.** `__()` before `init` returns the
+  untranslated msgid. Every current caller runs at `wp_footer` / enqueue time, well after.
+- **`SALE` is intentionally untranslated in de and fr** (`msgstr "SALE"`, not empty). Swiss
+  retail uses the English word in all three languages. An empty `msgstr` would look identical on
+  screen but means "untranslated" to every tooling pass — keep the explicit value.
+- **Swiss vs. standard German.** The site's attributes use Swiss spelling (`Grösse`), but the
+  locale is `de_DE` and the **theme's own catalogue uses `ß`** (`Menü schließen`). The plugin's
+  German strings happen to need no `ß` at all, so nothing had to be decided here. If you add one
+  that does, match the theme (`ß`), or move both to `de_CH` together — not one without the other.
 
 ### Version — 2.0.0 is the confirmed release
 
@@ -695,11 +748,16 @@ conclusion and the reasoning here** and keep only the raw data in that folder.
   attribute has no terms, so it cannot carry term meta and its colour always comes from the
   `yk_wcgv_resolve_color()` name map. A client who needs a two-tone colour has to convert that
   attribute into a global attribute.
-- **WPML does not copy term meta to translated terms.** A translated colour term shows no
-  swatch colour or image. There is a `KNOWN LIMITATION` comment at the term lookup inside
-  `yk_wcgv_get_swatch()`. Falling back to the source term's meta needs WPML's term-translation
-  API and was **deliberately not implemented in 2.0.0** — the operational fix is to set the
-  swatch on the translated term as well (documented in the README).
+- **WPML does not copy term meta to translated terms — partially mitigated in 2.1.0.**
+  A translated colour term shows no swatch colour or image. There is a `KNOWN LIMITATION`
+  comment at the term lookup inside `yk_wcgv_get_swatch()`. Falling back to the source term's
+  meta in PHP needs WPML's term-translation API and is still **not implemented**.
+  `wpml-config.xml` now declares `yk_wcgv_swatch_color`, `yk_wcgv_swatch_image_id` and
+  `yk_wcgv_pagination_mode` as `action="copy"`, which covers term translations **created or
+  saved from then on**. **Do not read that as solved:** WPML applies `copy` at save time and
+  does not backfill, so terms translated before 2.1.0 keep empty meta until re-saved. The
+  operational fix for existing terms is unchanged — set the swatch on the translated term, or
+  re-save it once.
 - Admin assets (`yk-wcgv-admin.js` + `wp_enqueue_media()`) load only on `edit-tags.php` /
   `term.php` when the taxonomy starts with `pa_`. **Do not widen that condition** — it exists
   to keep every other admin screen clean.
@@ -772,8 +830,9 @@ conclusion and the reasoning here** and keep only the raw data in that folder.
 - [ ] PHP indented with tabs, matching the WPCS style of the surrounding files
 - [ ] Every newly printed value goes through an escape function
 - [ ] New functions/constants carry the `yk_wcgv_` / `YK_WCGV_` prefix
-- [ ] New strings carry the `'yk-wc-grid-variations'` text domain, and were added to
-      `yk_wcgv_i18n()` / the WPML registration list where relevant
+- [ ] New strings carry the `'yk-wc-grid-variations'` text domain **and are written in
+      English**, and were added to `languages/*.pot`, both `.po` files, and the recompiled
+      `.mo` files
 - [ ] If the option schema changed, existing `yk_wcgv_settings` values were migrated
 - [ ] If the payload changed, PHP, JS and the README were all updated
 - [ ] If you touched a swatch background, you used longhands

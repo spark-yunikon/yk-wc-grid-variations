@@ -77,7 +77,7 @@
 	}
 
 	/**
-	 * "Auswahl zurücksetzen" — the way out of a dead end.
+	 * "Reset selection" — the way out of a dead end.
 	 *
 	 * On a three-attribute product an invalid combination leaves WooCommerce disabling every
 	 * remaining option, and WC hides its own .reset_variations link unless a variation has
@@ -102,7 +102,7 @@
 		button.type        = 'button';
 		button.className   = 'yk-sp-reset';
 		button.hidden      = true;
-		button.textContent = i18n.reset_selection || 'Auswahl zurücksetzen';
+		button.textContent = i18n.reset_selection || 'Reset selection';
 
 		button.addEventListener( 'click', () => native.click() );
 
