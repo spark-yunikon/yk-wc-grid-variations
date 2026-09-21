@@ -433,6 +433,7 @@
 	background: transparent;
 	color: var(--wp--preset--color--secondary, #000000);
 	padding: 0;
+	margin: 0;
 	-moz-appearance: textfield;
 	-webkit-appearance: textfield;
 	appearance: textfield;

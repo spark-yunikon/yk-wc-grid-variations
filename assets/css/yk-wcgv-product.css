@@ -284,6 +284,10 @@
 	background: transparent !important;
 	color: var(--wp--preset--color--secondary, #000000);
 	padding: 0 !important;
+	/* The field sits between the two buttons, so anything on its side pushes the number
+	   off the pill's centre. A host site put a 0.5em right margin on it — the number read
+	   as left-aligned with a gap before the + button. The stepper owns this box. */
+	margin: 0 !important;
 	height: 100% !important;
 	-moz-appearance: textfield;
 	-webkit-appearance: textfield;
