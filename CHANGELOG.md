@@ -7,6 +7,45 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+The archive card back to what the shop renders today. Three differences against the live
+site, two causes.
+
+### Fixed
+
+- **The quantity stepper came out as three boxes with rules between them, roughly twice as
+  wide.** `.yk-qty-input` clears the field down to `border: none; padding: 0; width: 32px`,
+  but a host theme may box every `<input>` as a text field, and YK Starter's
+  `input:not([type="checkbox"], …)` is (0,1,1) — `:not()` carries the specificity of its
+  heaviest argument — so it beat the single class and painted its own 1px border and
+  10px/20px padding onto the number. The selector is now `.yk-qty-wrap .yk-qty-input`
+  (0,2,0), which wins without `!important`, and it spells out `border-radius`, `min-width`
+  and `line-height` as well, since that rule supplies those too. A focused field no longer
+  takes the theme's neutral tint. This is not a Shop Attack matter: a component that owns a
+  control has to be able to say so.
+
+### Changed
+
+- **The Shop Attack variant no longer forces uppercase on `.yk-btn`.** German is the longest
+  label in the catalogue — `IN DEN WARENKORB` wrapped to two lines and changed the grid's row
+  height, and `HINZUGEFÜGT` ran past the button's edge with its check icon. The base
+  sentence-case label is what the site shows.
+- **The Shop Attack variant no longer repaints `.yk-add-to-cart.is-added` black.** The site's
+  add-to-cart confirmation is the base green, so the override only described a design the
+  shop has never run.
+
+The variant's own job is untouched: its `--yk-*` tokens, the sale badge colour, the sale
+price and the error text all stay. Turning the variant off instead would not have worked —
+the default `--yk-danger` is the primary preset, which on this site is yellow, so the sale
+price and the validation message would have gone yellow on white.
+
+Version constants are deliberately not bumped here; they move at release time. Note that
+`yk_wcgv_asset_version()` falls back to `YK_WCGV_VERSION` whenever `WP_DEBUG` is off, so on a
+production site none of this is visible until the version moves or the cache is cleared.
+
+---
+
 ## [2.0.0] — 2026-08-14
 
 A rewrite of how the plugin decides *what* to show. 1.x hunted for one colour attribute and

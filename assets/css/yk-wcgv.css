@@ -413,19 +413,36 @@
 	background: var(--wp--preset--color--subtle, #FBF4C8);
 }
 
-.yk-qty-input {
+/* The wrapper is in this selector on purpose. A host theme may box every <input> as a
+   text field: YK Starter's `input:not([type="checkbox"], ...)` is (0,1,1) — :not() carries
+   the specificity of its heaviest argument — so it beat this single class and painted the
+   number with a 1px border and 10px/20px padding. The pill came out split into three boxes
+   and the stepper twice as wide. (0,2,0) wins without !important, and every property that
+   rule also supplies is spelled out here rather than left to inherit, or the problem only
+   moves to the next property. */
+.yk-qty-wrap .yk-qty-input {
 	width: 32px;
+	min-width: 0;
 	text-align: center;
 	border: none;
+	border-radius: 0;
 	font-size: 0.875rem;
 	font-weight: 400;
 	font-family: inherit;
+	line-height: normal;
 	background: transparent;
 	color: var(--wp--preset--color--secondary, #000000);
 	padding: 0;
 	-moz-appearance: textfield;
 	-webkit-appearance: textfield;
 	appearance: textfield;
+}
+
+/* Same rule, focused state: it tints a focused field with the neutral preset, which reads
+   as a grey block inside the white pill. The field is readonly and the stepper is driven
+   by its buttons, so there is nothing to signal. */
+.yk-qty-wrap .yk-qty-input:focus {
+	background: transparent;
 }
 
 .yk-qty-input::-webkit-inner-spin-button,
@@ -737,10 +754,11 @@ body.yk-variant-shop-attack {
 	--yk-bg-image:       var(--wp--preset--color--neutral, #f7f3d5);
 }
 
-body.yk-variant-shop-attack .yk-btn {
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-}
+/* Deliberately not overridden here: the button's casing and the confirmation colour. This
+   shop renders the base sentence-case label and the base green confirmation. Forcing
+   uppercase wrapped the longest label in the catalogue — German's IN DEN WARENKORB — onto
+   two lines, which changed the grid's row height, and pushed HINZUGEFÜGT and its check
+   icon past the button's edge. */
 
 /* Sale badge: yellow background → text must be black for legibility */
 body.yk-variant-shop-attack .yk-badge-sale {
@@ -757,11 +775,4 @@ body.yk-variant-shop-attack .yk-price ins .woocommerce-Price-amount.amount {
 /* Error text: dark charcoal — yellow on white has poor contrast */
 body.yk-variant-shop-attack .yk-card__error {
 	color: var(--yk-text);
-}
-
-/* "Added to cart" confirmation: SHA black instead of the generic green */
-body.yk-variant-shop-attack .yk-add-to-cart.is-added {
-	background-color: var(--wp--preset--color--secondary, #000000);
-	border-color:     var(--wp--preset--color--secondary, #000000);
-	color: #ffffff;
 }
