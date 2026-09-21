@@ -24,6 +24,12 @@ site, two causes.
   and `line-height` as well, since that rule supplies those too. A focused field no longer
   takes the theme's neutral tint. This is not a Shop Attack matter: a component that owns a
   control has to be able to say so.
+- **On the single product page the quantity sat left of the pill's centre, with a gap before
+  the + button.** WooCommerce's `woocommerce-blocktheme.css` — loaded only when the active
+  theme is a block theme — gives the field a `margin-right: .5em`, and the field is the
+  middle of three flex items, so the two buttons stayed symmetric while the number moved.
+  Measured: wrap 129.5px instead of 122px, the field 3.8px off centre. Both steppers now
+  set `margin: 0`.
 
 ### Changed
 
