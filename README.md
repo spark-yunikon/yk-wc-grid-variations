@@ -547,6 +547,25 @@ Development note: assets are enqueued through `yk_wcgv_asset_version()`, which r
 
 ---
 
+## Branches
+
+`main` is the trunk. Feature and fix branches merge into it by pull request.
+
+**`feat/colour-browser-card` is not one of them.** It rebuilds the archive card for one
+client, Lavie: the card becomes a colour browser — a scroll-snap slider with one slide per
+colour, a swatch row bound to those slides, and a link into the product page with that
+colour preselected — and add-to-cart, the quantity stepper and the size pills are removed
+from the card entirely. That is a deliberate choice for that catalogue, not a direction for
+the plugin. Every other shop running this plugin sells from the card.
+
+**Never merge `feat/colour-browser-card` into `main`.** It carries a breaking change to the
+template, to the markup contract and to the shape of the JS payload, and merging it would
+take the buy box off every client's archive. Keep it as the branch it is — that is where
+Lavie's card lives. If a piece of it turns out to be useful to every client, lift that one
+piece onto its own branch off `main` and open a pull request for it.
+
+---
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md), and [CLAUDE.md](CLAUDE.md) for the reasoning behind the
