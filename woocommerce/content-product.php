@@ -25,6 +25,13 @@ $sku        = $product->get_sku();
 $is_bundle  = ( 'bundle' === $product->get_type() );
 $is_on_sale = $product->is_on_sale();
 
+// Price on request: a priceless product gets the quote link instead of add-to-cart. A
+// variable product also carries a hidden link, which yk-wcgv.js reveals when the chosen
+// variation has no price.
+$has_quote   = ! $is_bundle && class_exists( 'YK_WCGV_Quote' ) && YK_WCGV_Quote::enabled() && '' !== YK_WCGV_Quote::email();
+$needs_quote = $has_quote && YK_WCGV_Quote::needs_quote( $product );
+$show_quote  = $has_quote && ( $needs_quote || 'variable' === $product->get_type() );
+
 $show_vars = ( $settings['show_variations'] ?? '1' ) === '1';
 
 // Every attribute marked "Used for variations", in back-office order — built by the very
@@ -204,6 +211,7 @@ $yk_swatch_classes = static function ( array $option ): string {
 					</button>
 				</div>
 				<?php endif; ?>
+				<?php if ( ! $needs_quote ) : ?>
 				<button
 					type="button"
 					class="yk-add-to-cart yk-btn yk-btn--primary"
@@ -212,6 +220,16 @@ $yk_swatch_classes = static function ( array $option ): string {
 				>
 					<?php esc_html_e( 'Add to cart', 'yk-wc-grid-variations' ); ?>
 				</button>
+				<?php endif; ?>
+				<?php if ( $show_quote ) : ?>
+				<a
+					class="yk-quote yk-btn yk-btn--primary"
+					<?php echo YK_WCGV_Quote::link_attributes( $product ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped in link_attributes(). ?>
+					<?php echo $needs_quote ? '' : 'hidden'; ?>
+				>
+					<?php esc_html_e( 'Request a quote', 'yk-wc-grid-variations' ); ?>
+				</a>
+				<?php endif; ?>
 			</div>
 		<?php endif; ?>
 

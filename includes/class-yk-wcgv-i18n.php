@@ -73,6 +73,8 @@ class YK_WCGV_I18n {
 			// Single product page: the only way to clear a selection, because this theme
 			// keeps WooCommerce's own "Clear" link display:none in every state.
 			'reset_selection'  => __( 'Reset selection',          'yk-wc-grid-variations' ),
+			// Card price slot when the resolved variation has no price (since 2.1.0).
+			'price_on_request' => __( 'Price on request',         'yk-wc-grid-variations' ),
 		];
 	}
 }

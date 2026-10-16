@@ -46,6 +46,11 @@ class YK_WCGV_Settings {
 			'pagination_mode'    => 'pagination',
 			// How far before the sentinel enters the viewport the next page is fetched.
 			'prefetch_distance'  => 400,
+			// Price on request (since 2.1.0): products without a price get a "Request a
+			// quote" mailto link instead of add-to-cart. See YK_WCGV_Quote.
+			'quote_enabled'      => '1',
+			// Recipient; '' falls back to the WooCommerce sender address, then admin_email.
+			'quote_email'        => '',
 		] );
 	}
 
@@ -219,6 +224,8 @@ class YK_WCGV_Settings {
 		$clean['show_variations']     = ! empty( $raw['show_variations'] )     ? '1' : '0';
 		$clean['show_qty_stepper']    = ! empty( $raw['show_qty_stepper'] )    ? '1' : '0';
 		$clean['enable_product_page'] = ! empty( $raw['enable_product_page'] ) ? '1' : '0';
+		$clean['quote_enabled']       = ! empty( $raw['quote_enabled'] )       ? '1' : '0';
+		$clean['quote_email']         = isset( $raw['quote_email'] ) ? sanitize_email( wp_unslash( $raw['quote_email'] ) ) : '';
 
 		$mode = isset( $raw['pagination_mode'] ) ? sanitize_key( $raw['pagination_mode'] ) : 'pagination';
 		$clean['pagination_mode'] = in_array( $mode, self::PAGINATION_MODES, true ) ? $mode : 'pagination';
@@ -304,6 +311,39 @@ class YK_WCGV_Settings {
 									<?php checked( $settings['show_qty_stepper'], '1' ); ?>>
 								<?php esc_html_e( 'Show +/− quantity stepper on product cards', 'yk-wc-grid-variations' ); ?>
 							</label>
+						</td>
+					</tr>
+
+				</table>
+
+				<h2 class="title"><?php esc_html_e( 'Price on request', 'yk-wc-grid-variations' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'Products without a price show a "Request a quote" button that opens a prefilled e-mail, on product cards and on the product page.', 'yk-wc-grid-variations' ); ?>
+				</p>
+
+				<table class="form-table" role="presentation">
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Quote button', 'yk-wc-grid-variations' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="yk_wcgv_settings[quote_enabled]" value="1"
+									<?php checked( $settings['quote_enabled'], '1' ); ?>>
+								<?php esc_html_e( 'Show "Request a quote" instead of "Add to cart" when a product has no price', 'yk-wc-grid-variations' ); ?>
+							</label>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Recipient e-mail', 'yk-wc-grid-variations' ); ?></th>
+						<td>
+							<input type="email" class="regular-text"
+								name="yk_wcgv_settings[quote_email]"
+								value="<?php echo esc_attr( $settings['quote_email'] ); ?>"
+								placeholder="<?php echo esc_attr( (string) get_option( 'woocommerce_email_from_address', '' ) ); ?>">
+							<p class="description">
+								<?php esc_html_e( 'Leave empty to use the WooCommerce sender address (WooCommerce → Settings → Emails).', 'yk-wc-grid-variations' ); ?>
+							</p>
 						</td>
 					</tr>
 

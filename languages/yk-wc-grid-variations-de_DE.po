@@ -340,3 +340,63 @@ msgstr "%s in den Warenkorb legen"
 #: woocommerce/content-product.php:213
 msgid "Add to cart"
 msgstr "In den Warenkorb"
+
+#. translators: {name} is replaced with the product name. Keep the placeholder as is.
+#: includes/class-yk-wcgv-quote.php
+msgid "Quote request: {name}"
+msgstr "Offertanfrage: {name}"
+
+#. translators: E-mail body. Keep {name}, {attributes}, {sku}, {qty} and {url} as they are, and keep each one on its own line. {attributes} becomes lines like "Colour: black".
+#: includes/class-yk-wcgv-quote.php
+msgid ""
+"Hello,\n"
+"\n"
+"Please send me a quote for the following product:\n"
+"\n"
+"Product: {name}\n"
+"{attributes}\n"
+"Item no.: {sku}\n"
+"Quantity: {qty}\n"
+"Link: {url}\n"
+"\n"
+"Kind regards"
+msgstr ""
+"Guten Tag\n"
+"\n"
+"Bitte senden Sie mir eine Offerte für folgendes Produkt:\n"
+"\n"
+"Produkt: {name}\n"
+"{attributes}\n"
+"Art.-Nr.: {sku}\n"
+"Menge: {qty}\n"
+"Link: {url}\n"
+"\n"
+"Freundliche Grüsse"
+
+#: includes/class-yk-wcgv-quote.php includes/class-yk-wcgv-i18n.php includes/class-yk-wcgv-settings.php
+msgid "Price on request"
+msgstr "Preis auf Anfrage"
+
+#: includes/class-yk-wcgv-quote.php woocommerce/content-product.php
+msgid "Request a quote"
+msgstr "Offerte anfragen"
+
+#: includes/class-yk-wcgv-settings.php
+msgid "Products without a price show a \"Request a quote\" button that opens a prefilled e-mail, on product cards and on the product page."
+msgstr "Produkte ohne Preis zeigen eine Schaltfläche «Offerte anfragen», die eine vorausgefüllte E-Mail öffnet – auf den Produktkarten und auf der Produktseite."
+
+#: includes/class-yk-wcgv-settings.php
+msgid "Quote button"
+msgstr "Offert-Schaltfläche"
+
+#: includes/class-yk-wcgv-settings.php
+msgid "Show \"Request a quote\" instead of \"Add to cart\" when a product has no price"
+msgstr "«Offerte anfragen» statt «In den Warenkorb» anzeigen, wenn ein Produkt keinen Preis hat"
+
+#: includes/class-yk-wcgv-settings.php
+msgid "Recipient e-mail"
+msgstr "Empfänger-E-Mail"
+
+#: includes/class-yk-wcgv-settings.php
+msgid "Leave empty to use the WooCommerce sender address (WooCommerce → Settings → Emails)."
+msgstr "Leer lassen, um die WooCommerce-Absenderadresse zu verwenden (WooCommerce → Einstellungen → E-Mails)."
