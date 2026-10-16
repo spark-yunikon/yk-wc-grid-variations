@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This repository is the WooCommerce plugin **YK WC Grid Variations** (v2.0.0).
+This repository is the WooCommerce plugin **YK WC Grid Variations** (v2.1.0).
 This document records the structure and the rules to follow when working in this codebase.
 
 ---

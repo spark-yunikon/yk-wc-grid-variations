@@ -7,7 +7,7 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased] — 2.1.0
+## [2.1.0] — 2026-10-16
 
 Three pieces of work.
 
