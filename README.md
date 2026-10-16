@@ -95,6 +95,19 @@ Individual categories override the mode on their own edit screen (**Products →
 |---|---|---|---|
 | Enhanced variation UI | `enable_product_page` | on | Replaces the native variation dropdowns with swatches/pills and adds the stepper |
 
+### Price on request
+
+| Setting | Key | Default | Effect |
+|---|---|---|---|
+| Quote button | `quote_enabled` | on | Products (or variations) without a price show "Price on request" and a "Request a quote" `mailto:` button instead of add-to-cart, on cards and on the product page |
+| Recipient e-mail | `quote_email` | *(empty)* | Empty falls back to the WooCommerce sender address, then `admin_email` |
+
+Subject and body are translatable strings (`YK_WCGV_Quote::templates()`) with the
+placeholders `{name}`, `{attributes}`, `{sku}`, `{qty}`, `{url}`. `{attributes}` becomes one
+"Label: value" line per chosen variation attribute (read from the card's groups or the
+variation form's labels and selects). A line whose placeholder is empty is dropped. `yk-wcgv-quote.js` rebuilds the link on click with the live quantity and the
+chosen variation's SKU, from `window.ykWcgvQuote = { email, subject, body }`.
+
 ### Filters
 
 ```php
@@ -106,6 +119,12 @@ add_filter( 'yk_wcgv_prefetch_distance', fn( $px ) => $px );
 
 // Style variation title; has the last word over the setting.
 add_filter( 'yk_wcgv_style_variant', fn( $title ) => 'Shop Attack' );
+
+// Whether a product shows "Request a quote" instead of add-to-cart (default: no price).
+add_filter( 'yk_wcgv_needs_quote', fn( $needs, $product ) => $needs, 10, 2 );
+
+// Recipient of quote requests.
+add_filter( 'yk_wcgv_quote_email', fn( $email ) => $email );
 ```
 
 ---

@@ -8,7 +8,7 @@
  * Class hooks targeted (all set in content-product.php):
  *   .yk-card, .yk-swatch, .yk-size, .yk-qty-wrap,
  *   .yk-qty-minus, .yk-qty-plus, .yk-qty-input,
- *   .yk-add-to-cart, .yk-price, .yk-badge-sale
+ *   .yk-add-to-cart, .yk-quote, .yk-price, .yk-badge-sale
  *
  * Payload contract (see README "JS data payload"):
  *   data.attributes[] = { name, label, style, options[] }   — every attribute marked
@@ -135,15 +135,17 @@
 			return;
 		}
 
-		// Bundle cards have no .yk-add-to-cart button — skip entirely.
-		const btn = card.querySelector( '.yk-add-to-cart' );
-		if ( ! btn ) {
+		// Bundle cards have neither button — skip entirely. A priceless product has only
+		// the quote link (.yk-quote), but its swatches and stepper still need wiring.
+		const btn   = card.querySelector( '.yk-add-to-cart' );
+		const quote = card.querySelector( '.yk-quote' );
+		if ( ! btn && ! quote ) {
 			return;
 		}
 
 		card.dataset.ykInit = '1';
 
-		const productId = btn.dataset.productId;
+		const productId = ( btn || quote ).dataset.productId;
 		const data      = products[ productId ];
 
 		if ( ! data || data.type === 'bundle' ) {
@@ -178,7 +180,10 @@
 		}
 
 		// ── Add to cart ───────────────────────────────────────────────────────
-		btn.addEventListener( 'click', () => onAddToCart( btn, card, productId, data ) );
+		// The quote link needs no handler here: yk-wcgv-quote.js builds its mailto on click.
+		if ( btn ) {
+			btn.addEventListener( 'click', () => onAddToCart( btn, card, productId, data ) );
+		}
 
 		// ── Pre-select the first available option of every attribute ──────────
 		if ( data.type === 'variable' ) {
@@ -310,6 +315,39 @@
 		}
 		updateImage( card, data, variation );
 		updatePriceAndSku( card, data, variation );
+		updateQuote( card, variation );
+	}
+
+	// ── Price on request ──────────────────────────────────────────────────────
+
+	/**
+	 * Swap add-to-cart for the quote link when the resolved variation has no price.
+	 *
+	 * Until the selection resolves, the server-rendered state stands: a card is in quote
+	 * mode from the start only when the whole product is priceless (then there is no
+	 * add-to-cart button at all). The link carries the variation's item number so the
+	 * e-mail names exactly what was picked.
+	 */
+	function updateQuote( card, variation ) {
+		const quote = card.querySelector( '.yk-quote' );
+		const btn   = card.querySelector( '.yk-add-to-cart' );
+
+		if ( ! quote || ! btn ) {
+			if ( quote ) {
+				quote.dataset.variationSku = ( variation && variation.sku ) || '';
+			}
+			return;
+		}
+
+		const needsQuote = !! variation && ( variation.price === null || variation.price === undefined );
+
+		quote.hidden = ! needsQuote;
+		btn.hidden   = needsQuote;
+		quote.dataset.variationSku = ( variation && variation.sku ) || '';
+
+		if ( needsQuote ) {
+			clearError( card );
+		}
 	}
 
 	// ── Price and SKU ─────────────────────────────────────────────────────────
@@ -351,7 +389,13 @@
 				}
 			}
 
-			setHtmlIfChanged( priceEl, priceHtml || priceEl.dataset.ykDefault );
+			// A resolved variation without a price must not keep showing the parent's range —
+			// that would advertise a price the shopper cannot get.
+			const onRequest = variation && ! priceHtml
+				? '<span class="yk-price-on-request">' + escHtml( i18n.price_on_request || '' ) + '</span>'
+				: null;
+
+			setHtmlIfChanged( priceEl, priceHtml || onRequest || priceEl.dataset.ykDefault );
 		}
 
 		if ( skuEl ) {

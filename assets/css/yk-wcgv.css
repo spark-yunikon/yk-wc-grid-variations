@@ -475,10 +475,17 @@
 	margin-bottom: 0;
 }
 
-.yk-cart-row .yk-add-to-cart {
+.yk-cart-row .yk-add-to-cart,
+.yk-cart-row .yk-quote {
 	flex: 1;
 	width: auto;
 	min-width: 0;
+}
+
+/* .yk-btn sets display:flex, which beats the UA's [hidden] rule. yk-wcgv.js swaps the
+   button and the quote link with the hidden attribute, so it has to win here. */
+.yk-cart-row [hidden] {
+	display: none !important;
 }
 
 /* ============================================================
@@ -523,6 +530,12 @@
 	display: none !important;
 }
 
+/* "Price on request" — no amount, so no bold amount styling either. */
+.yk-price-on-request {
+	color: var(--yk-text-subtle);
+	font-weight: 400;
+}
+
 /* ============================================================
    9. BUTTONS — Add to Cart + Zum Produkt
    ============================================================ */
@@ -556,6 +569,7 @@
 }
 
 .yk-btn--primary:hover,
+.yk-btn--primary:focus-visible,
 .yk-add-to-cart:hover {
 	background-color: var(--yk-btn-bg-hover);
 	border-color: var(--yk-btn-bg-hover);
@@ -776,4 +790,87 @@ body.yk-variant-shop-attack .yk-price ins .woocommerce-Price-amount.amount {
 /* Error text: dark charcoal — yellow on white has poor contrast */
 body.yk-variant-shop-attack .yk-card__error {
 	color: var(--yk-text);
+}
+
+/* ============================================================
+   PRICE ON REQUEST — single product page (since 2.1.0)
+   Lives here, not in yk-wcgv-product.css: that file only loads when the enhanced
+   variation UI is on, and the quote link must work either way.
+   ============================================================ */
+
+/* Variable product: the chosen variation has no price. WooCommerce has already disabled
+   its button; hide it so only the quote link that yk-wcgv-quote.js revealed remains.
+   The selector must outrank yk-wcgv-product.css's
+   `.single-product .single_add_to_cart_button.button { display:flex !important }` (0,3,0)
+   — a plain `.yk-sp-quote-mode .single_add_to_cart_button` lost to it and both buttons
+   showed side by side. */
+.yk-sp-quote-mode .single_add_to_cart_button,
+.single-product form.yk-sp-quote-mode .single_add_to_cart_button.button {
+	display: none !important;
+}
+
+.yk-sp-quote[hidden] {
+	display: none !important;
+}
+
+.yk-sp-quote {
+	margin-block: 1rem;
+}
+
+/* Inside the variation form the link takes the cart button's place in the flex row. */
+.variations_button .yk-sp-quote {
+	flex: 1;
+	min-width: 0;
+	margin-block: 0;
+}
+
+/* Same look as the add-to-cart button it replaces. Deliberately NOT given the
+   .single_add_to_cart_button class: WooCommerce and side-cart plugins bind add-to-cart
+   handlers to that class. Keep in step with yk-wcgv-product.css "ADD TO CART BUTTON". */
+.single-product .yk-sp-quote .yk-quote.button {
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 44px;
+	padding: 0.65rem 1.5rem !important;
+	font-size: 0.875rem !important;
+	font-weight: 600 !important;
+	font-family: inherit !important;
+	letter-spacing: 0.02em;
+	line-height: 1.4;
+	text-align: center;
+	text-decoration: none;
+	border-radius: var(--yk-radius-btn) !important;
+	border: 1px solid var(--yk-btn-bg) !important;
+	background-color: var(--yk-btn-bg) !important;
+	color: var(--yk-btn-fg) !important;
+	box-sizing: border-box;
+	transition: background-color 0.15s ease, border-color 0.15s ease !important;
+}
+
+.single-product .yk-sp-quote .yk-quote.button:hover,
+.single-product .yk-sp-quote .yk-quote.button:focus-visible {
+	background-color: var(--yk-btn-bg-hover) !important;
+	border-color: var(--yk-btn-bg-hover) !important;
+	color: var(--yk-btn-fg) !important;
+}
+
+body.yk-variant-shop-attack .single-product .yk-sp-quote .yk-quote.button {
+	background-color: var(--wp--preset--color--secondary, #000000) !important;
+	border-color:     var(--wp--preset--color--secondary, #000000) !important;
+	color: #ffffff !important;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	border-radius: 25px !important;
+}
+
+body.yk-variant-shop-attack .single-product .yk-sp-quote .yk-quote.button:hover,
+body.yk-variant-shop-attack .single-product .yk-sp-quote .yk-quote.button:focus-visible {
+	background-color: var(--wp--preset--color--contrast, #222222) !important;
+	border-color:     var(--wp--preset--color--contrast, #222222) !important;
+}
+
+.yk-price-on-request {
+	color: var(--yk-text-subtle);
 }

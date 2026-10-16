@@ -341,6 +341,8 @@ includes/
 ├── class-yk-wcgv-assets.php   wp_enqueue_scripts, inline script injection
 ├── class-yk-wcgv-template.php wc_get_template_part override, loop hook removal, body_class
 ├── class-yk-wcgv-ajax.php     Infinite-scroll endpoint (nonce + query var whitelist)
+├── class-yk-wcgv-quote.php    Price on request: needs_quote(), mailto builder, product page
+│                              link, keeps priceless variations in the variation form
 ├── class-yk-wcgv-term-meta.php Swatch colour/image admin UI for attribute terms (pa_*)
 │                              ★ required and init'd only when is_admin()
 └── class-yk-wcgv-category-meta.php Per-product_cat paging mode override
@@ -355,6 +357,7 @@ assets/
     ├── yk-wcgv.js             Card interaction (swatches/pills/quantity/AJAX cart)
     ├── yk-wcgv-product.js     Single product page (select → swatch/pill, stepper)
     ├── yk-wcgv-infinite.js    Infinite scroll (IntersectionObserver, card append)
+    ├── yk-wcgv-quote.js       "Request a quote" mailto rebuild + variation-form toggle
     └── yk-wcgv-admin.js       Admin term screen (colour input sync, media frame)
 wpml-config.xml                WPML term-meta declarations (copy on translate)
 languages/                     .pot + de_DE / fr_FR .po and .mo  ★ required, not optional
@@ -629,6 +632,25 @@ Consequences:
   already updates price and SKU (verified: `.woocommerce-variation-price` and the theme's
   "Artikelnummer" both change). Per the STEP 5 lesson, WooCommerce must remain the single
   source of state.
+
+### Price on request (2.1.0)
+
+A product or variation with no price gets "Price on request" + a "Request a quote" `mailto:`
+link instead of add-to-cart (`YK_WCGV_Quote`). Easy-to-undo details:
+
+- **Print the mailto with `esc_attr()`, never `esc_url()`.** `esc_url()` strips `%0D`/`%0A`
+  (header-injection guard), which flattens the e-mail body onto one line. The address is
+  `sanitize_email()`ed and everything else is `rawurlencode()`d, so `esc_attr()` is safe.
+- **The `[hidden]` override in `.yk-cart-row` is required.** `.yk-btn` sets `display:flex`,
+  which beats the UA's `[hidden]` rule — without it the JS swap shows both buttons.
+- **Single-page quote CSS lives in `yk-wcgv.css`**, not `yk-wcgv-product.css`, because the
+  latter only loads when `enable_product_page` is on.
+- **`woocommerce_variation_is_visible` is overridden on the front end only** for published,
+  priceless variations. WooCommerce otherwise drops them from the form and the shopper gets
+  "no products matched". The cart still rejects them (`is_purchasable()` stays false).
+- The card needs no payload change: a priceless variation already carries `price: null`.
+- Measured on sha local (10/2026): 4,222 published products have no `_price`, plus 42
+  priceless variations inside otherwise priced variable products.
 
 ### Infinite scroll (STEP 7)
 

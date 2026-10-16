@@ -38,6 +38,7 @@ require_once YK_WCGV_DIR . 'includes/class-yk-wcgv-data.php';
 require_once YK_WCGV_DIR . 'includes/class-yk-wcgv-assets.php';
 require_once YK_WCGV_DIR . 'includes/class-yk-wcgv-template.php';
 require_once YK_WCGV_DIR . 'includes/class-yk-wcgv-ajax.php';
+require_once YK_WCGV_DIR . 'includes/class-yk-wcgv-quote.php';
 
 // Admin-only: term swatch fields and the per-category paging override. The front end
 // reads swatches through yk_wcgv_get_swatch() and the paging mode through
@@ -55,6 +56,7 @@ YK_WCGV_Data::init();
 YK_WCGV_Assets::init();
 YK_WCGV_Template::init();
 YK_WCGV_Ajax::init();
+YK_WCGV_Quote::init();
 
 if ( is_admin() ) {
 	YK_WCGV_Term_Meta::init();

@@ -9,7 +9,7 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased] — 2.1.0
 
-Two pieces of work.
+Three pieces of work.
 
 **Translations**, aligned with the YK Starter theme (`yk-theme`). Before this, the plugin
 shipped no `languages/` directory at all, so **none of its 67 strings was translatable on any
@@ -22,6 +22,23 @@ had to defend themselves against.
 
 ### Added
 
+- **Price on request** (`includes/class-yk-wcgv-quote.php`, `assets/js/yk-wcgv-quote.js`).
+  A product without a price used to render nothing on the product page and a dead
+  "Add to cart" on the card (WooCommerce rejects an empty price as not purchasable). It now
+  shows "Price on request" in the price slot and a **"Request a quote"** button that opens a
+  prefilled e-mail (`mailto:`, subject + body with name, chosen attributes such as
+  "Farbe: schwarz / Länge: 3m", item number, quantity and URL).
+  - Card: priceless simple/variable products get the link instead of add-to-cart. A
+    variable product with only *some* priceless variations swaps button ↔ link when such a
+    variation resolves (`price: null` in the existing payload — no schema change).
+  - Product page: simple products get the link after the (empty) add-to-cart slot. Variable
+    products keep priceless variations in the form (`woocommerce_variation_is_visible`,
+    front end only) instead of ending in "no products matched", and the link replaces the
+    button for those variations.
+  - Settings: **Quote button** (`quote_enabled`, default on) and **Recipient e-mail**
+    (`quote_email`, empty = WooCommerce sender address, then `admin_email`).
+  - Filters: `yk_wcgv_needs_quote`, `yk_wcgv_quote_email`.
+  - 9 new msgids (de/fr translated, `.mo` recompiled).
 - **`languages/`** — `yk-wc-grid-variations.pot` (67 msgids) plus complete German
   (`de_DE`) and French (`fr_FR`) `.po` **and compiled `.mo`** catalogues. English needs no
   catalogue: it is the source language.
