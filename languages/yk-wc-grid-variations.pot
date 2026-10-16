@@ -2,7 +2,7 @@
 # This file is distributed under the same license as the YK WC Grid Variations plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: YK WC Grid Variations 2.0.0\n"
+"Project-Id-Version: YK WC Grid Variations 2.1.0\n"
 "Report-Msgid-Bugs-To: https://yunikon.ch/\n"
 "POT-Creation-Date: 2026-08-17 00:00+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"

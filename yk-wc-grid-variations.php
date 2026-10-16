@@ -3,7 +3,7 @@
  * Plugin Name:  YK WC Grid Variations
  * Plugin URI:   https://yunikon.ch/
  * Description:  Custom product card display for WooCommerce archive / category pages. Interactive swatches, size pills, quantity stepper, and AJAX add-to-cart.
- * Version:      2.0.0
+ * Version:      2.1.0
  * Author:       Yunikon GmbH
  * Author URI:   https://yunikon.ch/
  * Text Domain:  yk-wc-grid-variations
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'YK_WCGV_VERSION', '2.0.0' );
+define( 'YK_WCGV_VERSION', '2.1.0' );
 define( 'YK_WCGV_FILE', __FILE__ );
 define( 'YK_WCGV_DIR', plugin_dir_path( __FILE__ ) );
 define( 'YK_WCGV_URL', plugin_dir_url( __FILE__ ) );
